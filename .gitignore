@@ -1,0 +1,17 @@
+# Backend
+backend/pb_data/
+backend/pocketbase.exe
+backend/CHANGELOG.md
+backend/LICENSE.md
+
+# Node / Expo (client, added later)
+node_modules/
+.expo/
+dist/
+*.log
+.env
+.env.local
+
+# OS
+Thumbs.db
+.DS_Store
