@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.sixfriendstrekking.nemchyo",
-      "versionCode": 4,
+      "versionCode": 5,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

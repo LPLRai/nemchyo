@@ -14,6 +14,13 @@ import { useAuth } from '@/lib/auth';
 import { redeemInvite } from '@/lib/invites';
 import { PRIMARY } from './_layout';
 
+// Accept either a raw code or a full join URL (pull ?code=... out of it).
+function extractCode(input: string): string {
+  const s = input.trim();
+  const m = s.match(/[?&]code=([^&\s#]+)/);
+  return m ? decodeURIComponent(m[1]) : s;
+}
+
 export default function Join() {
   const params = useLocalSearchParams<{ code?: string }>();
   const { isValid } = useAuth();
@@ -28,14 +35,15 @@ export default function Join() {
   const hasCode = !!params.code;
 
   async function join() {
-    if (!code.trim()) {
-      setError('Please enter your invite code.');
+    const codeValue = extractCode(code);
+    if (!codeValue) {
+      setError('Please enter your invite code or link.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      await redeemInvite(code.trim(), name.trim() || undefined);
+      await redeemInvite(codeValue, name.trim() || undefined);
       router.replace('/chats');
     } catch (e: any) {
       setError(e?.message || 'That invite is invalid or has already been used.');
@@ -69,7 +77,7 @@ export default function Join() {
               value={code}
               onChangeText={setCode}
               autoCapitalize="none"
-              placeholder="Paste your invite code"
+              placeholder="Paste your code or invite link"
               placeholderTextColor="#9CA3AF"
             />
           </>
