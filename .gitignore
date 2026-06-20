@@ -3,14 +3,16 @@ backend/pb_data/
 backend/pocketbase.exe
 backend/CHANGELOG.md
 backend/LICENSE.md
+backend/pb_public/
 
-# Node / Expo (client, added later)
+# Node / Expo
 node_modules/
 .expo/
-dist/
 *.log
 .env
 .env.local
+
+# nemchyo/dist (the web/PWA build) IS committed — it's deployed to the server's pb_public.
 
 # OS
 Thumbs.db
