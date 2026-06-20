@@ -2,6 +2,7 @@
   "expo": {
     "name": "Nemchyo",
     "slug": "nemchyo",
+    "owner": "lplrai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -11,6 +12,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.sixfriendstrekking.nemchyo",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -39,6 +41,12 @@
     "experiments": {
       "typedRoutes": false,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a7ed695b-e7f6-4179-ae09-3a923de1db38"
+      }
     }
   }
 }
