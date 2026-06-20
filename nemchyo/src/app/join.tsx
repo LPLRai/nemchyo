@@ -1,4 +1,4 @@
-import { Redirect, useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,6 +17,7 @@ import { PRIMARY } from './_layout';
 export default function Join() {
   const params = useLocalSearchParams<{ code?: string }>();
   const { isValid } = useAuth();
+  const router = useRouter();
   const [code, setCode] = useState((params.code ?? '') as string);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -35,7 +36,7 @@ export default function Join() {
     setError('');
     try {
       await redeemInvite(code.trim(), name.trim() || undefined);
-      // token saved -> the Redirect above sends us to /chats
+      router.replace('/chats');
     } catch (e: any) {
       setError(e?.message || 'That invite is invalid or has already been used.');
     } finally {

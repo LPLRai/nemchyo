@@ -1,4 +1,4 @@
-import { Link, Redirect } from 'expo-router';
+import { Link, Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,8 +16,9 @@ import { PRIMARY } from './_layout';
 
 export default function Login() {
   const { isValid } = useAuth();
-  const [email, setEmail] = useState('alice@test.local');
-  const [password, setPassword] = useState('Test-1234!');
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -25,13 +26,17 @@ export default function Login() {
   if (isValid) return <Redirect href="/chats" />;
 
   async function onLogin() {
+    if (!email.trim() || !password) {
+      setError('Enter your email and password.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
       await pb.collection('users').authWithPassword(email.trim(), password);
-      // Auth change triggers re-render -> the Redirect above takes over.
+      router.replace('/chats'); // explicit navigation (don't rely only on re-render)
     } catch (e: any) {
-      setError(e?.message || 'Login failed. Is the backend running?');
+      setError(e?.message || 'Login failed. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -78,10 +83,6 @@ export default function Login() {
             <Text style={styles.joinLink}>Have an invite? Join here →</Text>
           </Pressable>
         </Link>
-
-        <Text style={styles.hint}>
-          Dev accounts: alice@test.local · bob@test.local{'\n'}password: Test-1234!
-        </Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -112,5 +113,4 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   joinLink: { color: PRIMARY, fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 14 },
   error: { color: '#DC2626', fontSize: 14, textAlign: 'center' },
-  hint: { color: '#9CA3AF', fontSize: 12, textAlign: 'center', marginTop: 12, lineHeight: 18 },
 });
