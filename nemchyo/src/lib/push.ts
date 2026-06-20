@@ -38,6 +38,12 @@ export async function registerForPush() {
         sound: 'default',
         vibrationPattern: [0, 250, 250, 250],
       });
+      await Notifications.setNotificationChannelAsync('calls', {
+        name: 'Calls',
+        importance: Notifications.AndroidImportance.MAX,
+        sound: 'default',
+        vibrationPattern: [0, 1000, 500, 1000],
+      });
     }
 
     const projectId =

@@ -151,3 +151,52 @@ onRecordAfterCreateSuccess((e) => {
   }
   e.next();
 }, "messages");
+
+// On a new call (status=ringing): high-priority push to the callee so the phone
+// rings even when the app is closed. Tapping it opens the call screen.
+onRecordAfterCreateSuccess((e) => {
+  try {
+    const call = e.record;
+    if (call.getString("status") === "ringing") {
+      const calleeId = call.get("callee");
+      const callerId = call.get("caller");
+      let devs = [];
+      try {
+        devs = $app.findRecordsByFilter("devices", "user = {:u}", "", 50, 0, { u: calleeId });
+      } catch (err) {}
+      if (devs.length > 0) {
+        let callerName = "Someone";
+        try {
+          callerName = $app.findRecordById("users", callerId).getString("display_name") || "Someone";
+        } catch (err) {}
+        const kind = call.getString("kind");
+        const payload = [];
+        for (let i = 0; i < devs.length; i++) {
+          payload.push({
+            to: devs[i].getString("token"),
+            title: "📞 Nemchyo",
+            body: callerName + " is " + (kind === "video" ? "video " : "") + "calling…",
+            sound: "default",
+            priority: "high",
+            channelId: "calls",
+            data: { type: "call", callId: call.id, kind: kind, peer: callerId, name: callerName },
+          });
+        }
+        try {
+          $http.send({
+            url: "https://exp.host/--/api/v2/push/send",
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            timeout: 20,
+          });
+        } catch (err) {
+          $app.logger().error("nemchyo call push failed: " + String(err));
+        }
+      }
+    }
+  } catch (err) {
+    $app.logger().error("nemchyo call push hook error: " + String(err));
+  }
+  e.next();
+}, "calls");

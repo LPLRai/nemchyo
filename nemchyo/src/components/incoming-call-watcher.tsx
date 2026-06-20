@@ -1,5 +1,7 @@
+import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
 
@@ -35,6 +37,27 @@ export function IncomingCallWatcher() {
       if (unsub) unsub();
     };
   }, [isValid, user?.id, router]);
+
+  // Tapping a call push (app was closed/backgrounded) opens the call screen.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    function handle(resp: any) {
+      const d = resp?.notification?.request?.content?.data;
+      if (d?.type === 'call' && d.callId) {
+        router.push({
+          pathname: '/call/[id]',
+          params: { id: d.callId, role: 'callee', kind: d.kind, peer: d.peer, name: d.name },
+        });
+      }
+    }
+    Notifications.getLastNotificationResponseAsync()
+      .then((r) => {
+        if (r) handle(r);
+      })
+      .catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener(handle);
+    return () => sub.remove();
+  }, [router]);
 
   return null;
 }

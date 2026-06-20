@@ -1,3 +1,4 @@
+import { PermissionsAndroid, Platform } from 'react-native';
 import {
   mediaDevices,
   RTCIceCandidate,
@@ -38,13 +39,36 @@ export class CallSession {
 
   async start() {
     this.cbs.onState?.('connecting');
+
+    // Android needs a runtime camera/mic permission grant before getUserMedia,
+    // otherwise the call silently stalls.
+    if (Platform.OS === 'android') {
+      try {
+        const perms: any[] = [PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
+        if (this.o.kind === 'video') perms.push(PermissionsAndroid.PERMISSIONS.CAMERA);
+        const res = await PermissionsAndroid.requestMultiple(perms);
+        if (!Object.keys(res).every((k) => (res as any)[k] === 'granted')) {
+          this.end();
+          return;
+        }
+      } catch {
+        this.end();
+        return;
+      }
+    }
+
     const iceServers = await getIceServers();
     this.pc = new RTCPeerConnection({ iceServers });
 
-    this.local = await mediaDevices.getUserMedia({
-      audio: true,
-      video: this.o.kind === 'video' ? { facingMode: 'user' } : false,
-    });
+    try {
+      this.local = await mediaDevices.getUserMedia({
+        audio: true,
+        video: this.o.kind === 'video' ? { facingMode: 'user' } : false,
+      });
+    } catch {
+      this.end();
+      return;
+    }
     this.cbs.onLocalStream?.(this.local);
     this.local.getTracks().forEach((t: any) => this.pc.addTrack(t, this.local));
 
