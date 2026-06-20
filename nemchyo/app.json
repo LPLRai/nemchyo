@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.sixfriendstrekking.nemchyo",
-      "versionCode": 5,
+      "versionCode": 6,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -39,7 +39,8 @@
           }
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "@config-plugins/react-native-webrtc"
     ],
     "experiments": {
       "typedRoutes": false,

@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Redirect, Stack, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router';
+import { Redirect, Stack, useLocalSearchParams, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -21,6 +21,7 @@ import { useAuth } from '@/lib/auth';
 import { fileUrl } from '@/lib/files';
 import { isMuted, MUTE_OPTIONS, muteLabel, muteUntilValue } from '@/lib/mute';
 import { pb } from '@/lib/pb';
+import { callsSupported } from '@/lib/webrtc';
 import { PRIMARY } from '../_layout';
 
 const REACT_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
@@ -53,6 +54,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 export default function Conversation() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { isValid, user } = useAuth();
+  const router = useRouter();
   const [messages, setMessages] = useState<any[]>([]);
   const [reactions, setReactions] = useState<Record<string, any[]>>({});
   const [text, setText] = useState('');
@@ -149,6 +151,29 @@ export default function Conversation() {
   if (!isValid) return <Redirect href="/" />;
 
   const muted = isMuted(membership?.muted_until);
+
+  async function startCall(callKind: 'audio' | 'video') {
+    try {
+      const members = await pb
+        .collection('chat_members')
+        .getFullList({ filter: pb.filter('chat = {:c}', { c: id }), expand: 'user' });
+      const other = members.find((m: any) => m.user !== user.id);
+      if (!other) return;
+      const call = await pb
+        .collection('calls')
+        .create({ chat: id, caller: user.id, callee: other.user, kind: callKind, status: 'ringing' });
+      router.push({
+        pathname: '/call/[id]',
+        params: {
+          id: call.id,
+          role: 'caller',
+          kind: callKind,
+          peer: other.user,
+          name: other.expand?.user?.display_name || 'Member',
+        },
+      });
+    } catch {}
+  }
 
   async function setMute(minutes: number | null) {
     if (!membership) return;
@@ -269,9 +294,21 @@ export default function Conversation() {
         options={{
           title: chatName,
           headerRight: () => (
-            <Pressable onPress={() => setMuteVisible(true)} hitSlop={10}>
-              <Text style={{ fontSize: 20 }}>{muted ? '🔕' : '🔔'}</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+              {callsSupported ? (
+                <Pressable onPress={() => startCall('audio')} hitSlop={8}>
+                  <Text style={{ fontSize: 19 }}>📞</Text>
+                </Pressable>
+              ) : null}
+              {callsSupported ? (
+                <Pressable onPress={() => startCall('video')} hitSlop={8}>
+                  <Text style={{ fontSize: 19 }}>🎥</Text>
+                </Pressable>
+              ) : null}
+              <Pressable onPress={() => setMuteVisible(true)} hitSlop={10}>
+                <Text style={{ fontSize: 20 }}>{muted ? '🔕' : '🔔'}</Text>
+              </Pressable>
+            </View>
           ),
         }}
       />
