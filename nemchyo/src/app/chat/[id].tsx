@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
+import { Redirect, Stack, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -31,6 +31,23 @@ function previewOf(m: any): string {
   if (m.type === 'image') return '📷 Photo';
   if (m.type === 'file') return '📄 ' + (m.file_name || 'File');
   return m.body || '';
+}
+
+// Shown instead of a crash if anything in this screen throws.
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <View style={{ flex: 1, padding: 24, justifyContent: 'center', gap: 14, backgroundColor: '#fff' }}>
+      <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827' }}>Couldn&apos;t open this chat</Text>
+      <Text selectable style={{ color: '#6B7280', fontSize: 13 }}>
+        {error?.message || String(error)}
+      </Text>
+      <Pressable
+        onPress={retry}
+        style={{ backgroundColor: PRIMARY, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}>
+        <Text style={{ color: '#fff', fontWeight: '700' }}>Try again</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 export default function Conversation() {
@@ -87,6 +104,7 @@ export default function Conversation() {
         }
       } catch {}
 
+      try {
       unsubMsg = await pb.collection('messages').subscribe(
         '*',
         (e) => {
@@ -116,6 +134,9 @@ export default function Conversation() {
           return prev;
         });
       });
+      } catch (e) {
+        /* realtime (SSE) unavailable — messages still load on open/refresh */
+      }
     })();
 
     return () => {
