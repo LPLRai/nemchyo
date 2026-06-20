@@ -13,7 +13,8 @@
     },
     "android": {
       "package": "com.sixfriendstrekking.nemchyo",
-      "versionCode": 2,
+      "versionCode": 3,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -37,7 +38,8 @@
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": false,

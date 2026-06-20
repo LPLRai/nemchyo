@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "696616688490",
+    "project_id": "nemchyo-f6128",
+    "storage_bucket": "nemchyo-f6128.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:696616688490:android:16f1319738a75d460d6313",
+        "android_client_info": {
+          "package_name": "com.sixfriendstrekking.nemchyo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDglrJx5S-2nay85ah-oW_3WP2V2DI46EQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
