@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
-import { PRIMARY } from './_layout';
+import { shadow, theme } from '@/lib/theme';
 
 export default function Login() {
   const { isValid } = useAuth();
@@ -46,10 +46,15 @@ export default function Login() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.card}>
+      <View style={styles.hero}>
+        <View style={styles.logoMark}>
+          <Text style={styles.logoMarkText}>N</Text>
+        </View>
         <Text style={styles.logo}>Nemchyo</Text>
-        <Text style={styles.subtitle}>Private family messaging</Text>
+        <Text style={styles.subtitle}>Private messaging, just for family</Text>
+      </View>
 
+      <View style={styles.card}>
         <TextInput
           style={styles.input}
           value={email}
@@ -57,7 +62,7 @@ export default function Login() {
           autoCapitalize="none"
           keyboardType="email-address"
           placeholder="Email"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={theme.textFaint}
         />
         <TextInput
           style={styles.input}
@@ -65,14 +70,14 @@ export default function Login() {
           onChangeText={setPassword}
           secureTextEntry
           placeholder="Password"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={theme.textFaint}
           onSubmitEditing={onLogin}
         />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Pressable
-          style={({ pressed }) => [styles.button, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [styles.button, pressed && { opacity: 0.9 }]}
           onPress={onLogin}
           disabled={busy}>
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Log in</Text>}
@@ -89,28 +94,49 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 380, gap: 12 },
-  logo: { fontSize: 40, fontWeight: '800', color: PRIMARY, textAlign: 'center' },
-  subtitle: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 12 },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: theme.bg },
+  hero: { alignItems: 'center', marginBottom: 28 },
+  logoMark: {
+    width: 84,
+    height: 84,
+    borderRadius: 26,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+    ...shadow.lg,
+  },
+  logoMarkText: { color: '#fff', fontSize: 44, fontWeight: '800' },
+  logo: { fontSize: 34, fontWeight: '800', color: theme.text, letterSpacing: 0.3 },
+  subtitle: { fontSize: 15, color: theme.textMuted, marginTop: 4 },
+  card: {
+    width: '100%',
+    maxWidth: 380,
+    gap: 12,
+    backgroundColor: theme.card,
+    borderRadius: 24,
+    padding: 22,
+    ...shadow.md,
+  },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: '#F4F4FA',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
+    borderColor: theme.border,
+    borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#111827',
+    color: theme.text,
   },
   button: {
-    backgroundColor: PRIMARY,
-    borderRadius: 12,
-    paddingVertical: 15,
+    backgroundColor: theme.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: 'center',
     marginTop: 4,
+    ...shadow.sm,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  joinLink: { color: PRIMARY, fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 14 },
-  error: { color: '#DC2626', fontSize: 14, textAlign: 'center' },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+  joinLink: { color: theme.primary, fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 10 },
+  error: { color: theme.danger, fontSize: 14, textAlign: 'center' },
 });

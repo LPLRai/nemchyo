@@ -38,6 +38,44 @@ export function IncomingCallWatcher() {
     };
   }, [isValid, user?.id, router]);
 
+  // Polling safety net: the realtime (SSE) socket can silently die — e.g. the
+  // Cloudflare tunnel drops an idle connection — and then an incoming-call
+  // event never arrives. So every few seconds we also actively ask "is anyone
+  // ringing me right now?". Dedupes against the realtime path via `handled`,
+  // so a call is only ever opened once.
+  useEffect(() => {
+    if (!isValid || !user?.id) return;
+    let stopped = false;
+    async function poll() {
+      if (stopped) return;
+      try {
+        const list = await pb.collection('calls').getList(1, 3, {
+          filter: pb.filter('callee = {:u} && status = "ringing"', { u: user.id }),
+          sort: '-created',
+        });
+        // Only fresh rings (last 90s) — ignore stale/abandoned call rows.
+        const c = list.items.find((x: any) => Date.now() - new Date(x.created).getTime() < 90000);
+        if (c && handled.current !== c.id) {
+          handled.current = c.id;
+          let nm = 'Someone';
+          try {
+            nm = (await pb.collection('users').getOne(c.caller)).display_name || 'Someone';
+          } catch {}
+          router.push({
+            pathname: '/call/[id]',
+            params: { id: c.id, role: 'callee', kind: c.kind, peer: c.caller, name: nm },
+          });
+        }
+      } catch {}
+    }
+    const iv = setInterval(poll, 4000);
+    poll();
+    return () => {
+      stopped = true;
+      clearInterval(iv);
+    };
+  }, [isValid, user?.id, router]);
+
   // Tapping a call push (app was closed/backgrounded) opens the call screen.
   useEffect(() => {
     if (Platform.OS === 'web') return;

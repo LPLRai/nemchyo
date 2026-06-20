@@ -17,10 +17,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Avatar } from '@/components/avatar';
 import { useAuth } from '@/lib/auth';
 import { fileUrl } from '@/lib/files';
 import { isMuted, MUTE_OPTIONS, muteLabel, muteUntilValue } from '@/lib/mute';
 import { pb } from '@/lib/pb';
+import { shadow, theme } from '@/lib/theme';
 import { callsSupported } from '@/lib/webrtc';
 import { PRIMARY } from '../_layout';
 
@@ -51,33 +54,68 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
+// Shows "X is typing…" for any other member whose typing_until is still in the
+// future. Self-contained ticker so it expires on its own without re-rendering
+// the whole message list.
+function TypingIndicator({ members, meId }: { members: any[]; meId?: string }) {
+  const [, setNow] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 1500);
+    return () => clearInterval(iv);
+  }, []);
+  const now = Date.now();
+  const names = members
+    .filter((m) => m.user !== meId && m.typing_until && new Date(m.typing_until).getTime() > now)
+    .map((m) => m.expand?.user?.display_name || 'Someone');
+  if (names.length === 0) return null;
+  const label =
+    names.length === 1
+      ? `${names[0]} is typing…`
+      : `${names.slice(0, 2).join(', ')}${names.length > 2 ? ' and others' : ''} are typing…`;
+  return (
+    <View style={styles.typingBar}>
+      <Text style={styles.typingText}>{label}</Text>
+    </View>
+  );
+}
+
 export default function Conversation() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { isValid, user } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<any[]>([]);
   const [reactions, setReactions] = useState<Record<string, any[]>>({});
   const [text, setText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [membership, setMembership] = useState<any>(null);
   const [chatName, setChatName] = useState('Chat');
+  const [chatType, setChatType] = useState('');
   const [muteVisible, setMuteVisible] = useState(false);
   const [replyTo, setReplyTo] = useState<any>(null);
   const [editing, setEditing] = useState<any>(null);
   const [actionTarget, setActionTarget] = useState<any>(null);
+  const [callPick, setCallPick] = useState<{ kind: 'audio' | 'video'; members: any[] } | null>(null);
+  const [members, setMembers] = useState<any[]>([]);
   const listRef = useRef<FlatList>(null);
+  const lastReadWrite = useRef(0);
+  const lastTypingWrite = useRef(0);
 
   useEffect(() => {
     if (!id) return;
     const filter = pb.filter('chat = {:id}', { id });
     let unsubMsg: (() => void) | undefined;
     let unsubReact: (() => void) | undefined;
+    let unsubMembers: (() => void) | undefined;
     let active = true;
 
     (async () => {
       try {
         const chat = await pb.collection('chats').getOne(id);
-        if (active) setChatName(chat.name || 'Chat');
+        if (active) {
+          setChatName(chat.name || '');
+          setChatType(chat.type || '');
+        }
       } catch {}
       if (user?.id) {
         try {
@@ -87,6 +125,10 @@ export default function Conversation() {
           if (active) setMembership(mem);
         } catch {}
       }
+      try {
+        const all = await pb.collection('chat_members').getFullList({ filter, expand: 'user' });
+        if (active) setMembers(all);
+      } catch {}
       try {
         const list = await pb
           .collection('messages')
@@ -136,6 +178,23 @@ export default function Conversation() {
           return prev;
         });
       });
+
+      // Members' read-position + typing state (drives read receipts + "typing…").
+      unsubMembers = await pb.collection('chat_members').subscribe(
+        '*',
+        (e) => {
+          if (e.record.chat !== id) return;
+          setMembers((prev) => {
+            if (e.action === 'delete') return prev.filter((m) => m.id !== e.record.id);
+            const idx = prev.findIndex((m) => m.id === e.record.id);
+            if (idx === -1) return [...prev, e.record];
+            const copy = [...prev];
+            copy[idx] = { ...copy[idx], ...e.record };
+            return copy;
+          });
+        },
+        { filter, expand: 'user' }
+      );
       } catch (e) {
         /* realtime (SSE) unavailable — messages still load on open/refresh */
       }
@@ -145,31 +204,55 @@ export default function Conversation() {
       active = false;
       if (unsubMsg) unsubMsg();
       if (unsubReact) unsubReact();
+      if (unsubMembers) unsubMembers();
     };
   }, [id, user?.id]);
+
+  // Mark the chat read (my last_read_at) when it opens and as new messages
+  // arrive while I'm looking at it. Throttled so it isn't spammed.
+  useEffect(() => {
+    if (membership?.id && messages.length > 0) markRead();
+  }, [messages.length, membership?.id]);
 
   if (!isValid) return <Redirect href="/" />;
 
   const muted = isMuted(membership?.muted_until);
+  const isDirectChat = chatType === 'direct';
+  const headerPeer = isDirectChat ? members.find((m) => m.user !== user?.id)?.expand?.user : null;
+  const headerName = isDirectChat ? headerPeer?.display_name || 'Chat' : chatName || 'Chat';
 
   async function startCall(callKind: 'audio' | 'video') {
     try {
       const members = await pb
         .collection('chat_members')
         .getFullList({ filter: pb.filter('chat = {:c}', { c: id }), expand: 'user' });
-      const other = members.find((m: any) => m.user !== user.id);
-      if (!other) return;
+      // Everyone in the chat except me, who actually has a user record.
+      const others = members.filter((m: any) => m.user && m.user !== user?.id);
+      if (others.length === 0) return; // no one to call
+      if (others.length === 1) {
+        placeCall(others[0], callKind); // 1-to-1 chat: ring them directly
+      } else {
+        // Group chat: ask who to call so we ring the right person — not just
+        // whoever happens to be first in the member list.
+        setCallPick({ kind: callKind, members: others });
+      }
+    } catch {}
+  }
+
+  async function placeCall(member: any, callKind: 'audio' | 'video') {
+    setCallPick(null);
+    try {
       const call = await pb
         .collection('calls')
-        .create({ chat: id, caller: user.id, callee: other.user, kind: callKind, status: 'ringing' });
+        .create({ chat: id, caller: user?.id, callee: member.user, kind: callKind, status: 'ringing' });
       router.push({
         pathname: '/call/[id]',
         params: {
           id: call.id,
           role: 'caller',
           kind: callKind,
-          peer: other.user,
-          name: other.expand?.user?.display_name || 'Member',
+          peer: member.user,
+          name: member.expand?.user?.display_name || 'Member',
         },
       });
     } catch {}
@@ -190,6 +273,7 @@ export default function Conversation() {
     const body = text.trim();
     if (!body) return;
     setText('');
+    stopTyping();
     try {
       if (editing) {
         const ed = editing;
@@ -204,6 +288,44 @@ export default function Conversation() {
     } catch {
       setText(body);
     }
+  }
+
+  async function markRead() {
+    if (!membership?.id) return;
+    const now = Date.now();
+    if (now - lastReadWrite.current < 1500) return; // throttle
+    lastReadWrite.current = now;
+    try {
+      await pb.collection('chat_members').update(membership.id, { last_read_at: new Date().toISOString() });
+    } catch {}
+  }
+
+  // Signal "I'm typing" (debounced to one write per few seconds).
+  function handleType(t: string) {
+    setText(t);
+    if (!membership?.id || editing) return;
+    const now = Date.now();
+    if (now - lastTypingWrite.current < 3000) return;
+    lastTypingWrite.current = now;
+    pb.collection('chat_members')
+      .update(membership.id, { typing_until: new Date(now + 6000).toISOString() })
+      .catch(() => {});
+  }
+
+  function stopTyping() {
+    lastTypingWrite.current = 0;
+    if (membership?.id) {
+      pb.collection('chat_members').update(membership.id, { typing_until: '' }).catch(() => {});
+    }
+  }
+
+  // A message of mine counts as "read" once every other member's last_read_at is
+  // at or after the moment it was sent.
+  function readByAll(message: any): boolean {
+    const created = new Date(message.created).getTime();
+    const others = members.filter((m) => m.user !== user?.id);
+    if (others.length === 0) return false;
+    return others.every((m) => m.last_read_at && new Date(m.last_read_at).getTime() >= created);
   }
 
   async function toggleReaction(message: any, emoji: string) {
@@ -288,11 +410,18 @@ export default function Conversation() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}>
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={insets.top + (Platform.OS === 'ios' ? 44 : 56)}>
       <Stack.Screen
         options={{
-          title: chatName,
+          headerTitle: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+              <Avatar user={isDirectChat ? headerPeer : undefined} name={headerName} size={32} />
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }} numberOfLines={1}>
+                {headerName}
+              </Text>
+            </View>
+          ),
           headerRight: () => (
             <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
               {callsSupported ? (
@@ -322,6 +451,7 @@ export default function Conversation() {
       <FlatList
         ref={listRef}
         data={messages}
+        style={styles.list}
         keyExtractor={(m) => m.id}
         contentContainerStyle={{ padding: 12, gap: 10 }}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
@@ -335,7 +465,8 @@ export default function Conversation() {
           const groups = grouped(item.id);
 
           return (
-            <View style={[styles.row, mine ? styles.right : styles.left]}>
+            <View style={[styles.row, mine ? styles.right : styles.left, { alignItems: 'flex-end', gap: 6 }]}>
+              {!mine ? <Avatar user={item.expand?.sender} name={name} size={28} /> : null}
               <View style={{ maxWidth: '80%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
                 <Pressable
                   onLongPress={() => !deleted && setActionTarget(item)}
@@ -373,8 +504,17 @@ export default function Conversation() {
                     <Text style={[styles.body, mine && { color: '#fff' }]}>{item.body}</Text>
                   )}
 
-                  {!deleted && item.edited_at ? (
-                    <Text style={[styles.edited, mine && { color: '#C7D2FE' }]}>edited</Text>
+                  {!deleted && (item.edited_at || mine) ? (
+                    <View style={styles.metaRow}>
+                      {item.edited_at ? (
+                        <Text style={[styles.edited, mine && { color: '#C7D2FE' }]}>edited</Text>
+                      ) : null}
+                      {mine ? (
+                        <Text style={[styles.tick, readByAll(item) && styles.tickRead]}>
+                          {readByAll(item) ? '✓✓' : '✓'}
+                        </Text>
+                      ) : null}
+                    </View>
                   ) : null}
                 </Pressable>
 
@@ -405,6 +545,8 @@ export default function Conversation() {
           <Text style={styles.uploadText}>Uploading…</Text>
         </View>
       ) : null}
+
+      <TypingIndicator members={members} meId={user?.id} />
 
       {replyTo ? (
         <View style={styles.composerBar}>
@@ -437,13 +579,13 @@ export default function Conversation() {
         <TextInput
           style={styles.input}
           value={text}
-          onChangeText={setText}
+          onChangeText={handleType}
           placeholder={editing ? 'Edit message' : 'Message'}
           placeholderTextColor="#9CA3AF"
           multiline
         />
         <Pressable style={({ pressed }) => [styles.sendBtn, pressed && { opacity: 0.85 }]} onPress={send}>
-          <Text style={styles.sendText}>{editing ? 'Save' : 'Send'}</Text>
+          <Text style={styles.sendIcon}>{editing ? '✓' : '➤'}</Text>
         </Pressable>
       </View>
 
@@ -464,6 +606,25 @@ export default function Conversation() {
               ))
             )}
             <Pressable style={styles.sheetCancel} onPress={() => setMuteVisible(false)}><Text style={styles.sheetCancelText}>Cancel</Text></Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Who to call (group chats) */}
+      <Modal visible={!!callPick} transparent animationType="fade" onRequestClose={() => setCallPick(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setCallPick(null)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>
+              {callPick?.kind === 'video' ? '🎥  Video call — who?' : '📞  Voice call — who?'}
+            </Text>
+            {callPick?.members.map((m: any) => (
+              <Pressable key={m.id} style={styles.sheetRow} onPress={() => callPick && placeCall(m, callPick.kind)}>
+                <Text style={styles.sheetRowText}>{m.expand?.user?.display_name || 'Member'}</Text>
+              </Pressable>
+            ))}
+            <Pressable style={styles.sheetCancel} onPress={() => setCallPick(null)}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -500,15 +661,16 @@ export default function Conversation() {
 const styles = StyleSheet.create({
   mutedBanner: { backgroundColor: '#FEF3C7', paddingVertical: 6, paddingHorizontal: 14, alignItems: 'center' },
   mutedText: { color: '#92400E', fontSize: 12, fontWeight: '600' },
+  list: { flex: 1, backgroundColor: theme.chatBg },
   row: { flexDirection: 'row' },
   left: { justifyContent: 'flex-start' },
   right: { justifyContent: 'flex-end' },
-  bubble: { borderRadius: 16, paddingHorizontal: 14, paddingVertical: 9 },
+  bubble: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, ...shadow.sm },
   bubbleMedia: { padding: 4, paddingBottom: 6 },
-  mine: { backgroundColor: PRIMARY, borderBottomRightRadius: 4 },
-  theirs: { backgroundColor: '#fff', borderBottomLeftRadius: 4 },
-  sender: { fontSize: 12, fontWeight: '700', color: PRIMARY, marginBottom: 2 },
-  body: { fontSize: 15, color: '#111827', lineHeight: 20 },
+  mine: { backgroundColor: theme.primary, borderBottomRightRadius: 6 },
+  theirs: { backgroundColor: theme.bubbleTheirs, borderBottomLeftRadius: 6 },
+  sender: { fontSize: 12.5, fontWeight: '700', color: theme.primary, marginBottom: 2 },
+  body: { fontSize: 15.5, color: theme.text, lineHeight: 21 },
   caption: { fontSize: 14, color: '#111827', lineHeight: 19, paddingHorizontal: 8, paddingTop: 6 },
   image: { width: 220, height: 220, borderRadius: 12, backgroundColor: '#E5E7EB' },
   fileCard: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 180 },
@@ -516,27 +678,32 @@ const styles = StyleSheet.create({
   fileName: { fontSize: 15, fontWeight: '600', color: '#111827' },
   fileHint: { fontSize: 12, color: '#6B7280', marginTop: 1 },
   deleted: { fontSize: 14, fontStyle: 'italic', color: '#6B7280' },
-  edited: { fontSize: 10, color: '#9CA3AF', marginTop: 3, alignSelf: 'flex-end' },
+  edited: { fontSize: 10, color: '#9CA3AF' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  tick: { fontSize: 11, color: '#C7D2FE', fontWeight: '700' },
+  tickRead: { color: '#FFFFFF' },
+  typingBar: { paddingHorizontal: 16, paddingTop: 5, paddingBottom: 3, backgroundColor: theme.chatBg },
+  typingText: { fontSize: 12.5, color: theme.primary, fontStyle: 'italic', fontWeight: '600' },
   quote: { borderLeftWidth: 3, borderLeftColor: PRIMARY, paddingLeft: 8, marginBottom: 5, opacity: 0.95 },
   quoteName: { fontSize: 12, fontWeight: '700', color: PRIMARY },
   quoteText: { fontSize: 12, color: '#6B7280' },
   reactRow: { flexDirection: 'row', gap: 4, marginTop: 4 },
-  reactChip: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 },
-  reactChipMine: { backgroundColor: '#EEF2FF', borderColor: PRIMARY },
+  reactChip: { backgroundColor: '#fff', borderWidth: 1, borderColor: theme.border, borderRadius: 14, paddingHorizontal: 9, paddingVertical: 3, ...shadow.sm },
+  reactChipMine: { backgroundColor: theme.primarySoft, borderColor: theme.primary },
   reactChipText: { fontSize: 13 },
   uploadBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
   uploadText: { color: '#6B7280', fontSize: 13 },
-  composerBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F9FAFB', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+  composerBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.primarySoft, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.border },
   composerLine: { width: 3, height: 32, backgroundColor: PRIMARY, borderRadius: 2 },
   composerTitle: { fontSize: 12, fontWeight: '700', color: '#374151' },
   composerPreview: { fontSize: 12, color: '#6B7280' },
   composerX: { fontSize: 16, color: '#6B7280', paddingHorizontal: 4 },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, padding: 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB' },
-  attachBtn: { paddingHorizontal: 4, paddingVertical: 10 },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 10, paddingVertical: 9, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: theme.border },
+  attachBtn: { paddingHorizontal: 3, paddingVertical: 10 },
   attachIcon: { fontSize: 22 },
-  input: { flex: 1, maxHeight: 120, backgroundColor: '#F3F4F6', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: '#111827' },
-  sendBtn: { backgroundColor: PRIMARY, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 11 },
-  sendText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  input: { flex: 1, maxHeight: 120, backgroundColor: '#F0F0F7', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11, fontSize: 15.5, color: theme.text },
+  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center', ...shadow.sm },
+  sendIcon: { color: '#fff', fontWeight: '700', fontSize: 18, marginLeft: 2 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 12, paddingBottom: 24 },
   sheetTitle: { fontSize: 16, fontWeight: '700', color: '#111827', textAlign: 'center', paddingVertical: 10 },

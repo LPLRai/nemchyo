@@ -19,3 +19,11 @@ export function fileUrl(
   const q = params.toString();
   return `${PB_URL}/api/files/${collection}/${record.id}/${filename}${q ? '?' + q : ''}`;
 }
+
+// URL for a user's avatar (PocketBase's built-in `avatar` file field on the
+// `users` collection), or null when they haven't set one — callers fall back to
+// showing their initial instead.
+export function avatarUrl(user?: { id?: string; avatar?: string } | null): string | null {
+  if (!user?.id || !user.avatar) return null;
+  return fileUrl({ id: user.id, collectionName: 'users' }, user.avatar);
+}
