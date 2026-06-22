@@ -39,6 +39,7 @@ export default function RootLayout() {
         <Stack.Screen name="join" options={{ title: 'Join Nemchyo' }} />
         <Stack.Screen name="chats" options={{ title: 'Nemchyo' }} />
         <Stack.Screen name="new-chat" options={{ title: 'New chat' }} />
+        <Stack.Screen name="new-poll" options={{ title: 'Create Poll' }} />
         <Stack.Screen name="profile" options={{ title: 'Your Profile' }} />
         <Stack.Screen name="chat/[id]" options={{ title: 'Chat' }} />
         <Stack.Screen name="invite" options={{ title: 'Invite a member' }} />

@@ -3,12 +3,24 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { pb } from '@/lib/pb';
 import { theme } from '@/lib/theme';
 
-// Renders a poll that lives in the chat timeline (message.type === 'poll').
-// Loads its own poll/options/votes and subscribes to votes for live results.
-export function PollMessage({ messageId, mine, userId }: { messageId: string; mine: boolean; userId?: string }) {
+function timeLeft(iso?: string): string {
+  if (!iso) return '';
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return 'Final results';
+  const h = Math.floor(ms / 3600000);
+  if (h >= 24) return `${Math.floor(h / 24)}d left`;
+  if (h >= 1) return `${h}h left`;
+  return `${Math.max(1, Math.floor(ms / 60000))}m left`;
+}
+
+// In-chat poll card: select an answer → Vote → live results, with a peek
+// ("Show results") and per-poll close time.
+export function PollMessage({ messageId, userId }: { messageId: string; userId?: string }) {
   const [poll, setPoll] = useState<any>(null);
   const [options, setOptions] = useState<any[]>([]);
   const [votes, setVotes] = useState<any[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -41,66 +53,140 @@ export function PollMessage({ messageId, mine, userId }: { messageId: string; mi
     };
   }, [messageId]);
 
-  if (!poll) return <Text style={[styles.q, mine && { color: '#fff' }]}>📊 Poll</Text>;
+  if (!poll) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>📊 Poll</Text>
+      </View>
+    );
+  }
 
   const total = votes.length;
   const myVotes = votes.filter((v) => v.user === userId).map((v) => v.option);
+  const hasVoted = myVotes.length > 0;
+  const closed = !!poll.closes_at && new Date(poll.closes_at).getTime() <= Date.now();
+  const resultsMode = hasVoted || showResults || closed;
 
-  async function vote(optionId: string) {
-    if (!userId) return;
-    const existing = votes.find((v) => v.option === optionId && v.user === userId);
+  function toggle(optId: string) {
+    if (poll.multiple) setSelected((s) => (s.includes(optId) ? s.filter((x) => x !== optId) : [...s, optId]));
+    else setSelected([optId]);
+  }
+
+  async function submitVote() {
+    if (selected.length === 0 || !userId) return;
+    const picks = selected;
+    setSelected([]);
     try {
-      if (existing) {
-        await pb.collection('poll_votes').delete(existing.id);
-      } else {
-        if (!poll.multiple) {
-          const others = votes.filter((v) => v.user === userId);
-          for (const o of others) await pb.collection('poll_votes').delete(o.id).catch(() => {});
-        }
-        await pb.collection('poll_votes').create({ poll: poll.id, option: optionId, user: userId });
+      for (const optId of picks) {
+        await pb.collection('poll_votes').create({ poll: poll.id, option: optId, user: userId });
       }
     } catch {}
   }
 
+  async function removeVote() {
+    const mine = votes.filter((v) => v.user === userId);
+    try {
+      for (const v of mine) await pb.collection('poll_votes').delete(v.id).catch(() => {});
+    } catch {}
+  }
+
   return (
-    <View style={styles.wrap}>
-      <Text style={[styles.q, mine && { color: '#fff' }]}>{poll.question}</Text>
-      {poll.multiple ? <Text style={[styles.sub, mine && { color: '#E0E7FF' }]}>Select one or more</Text> : null}
+    <View style={styles.card}>
+      <Text style={styles.title}>{poll.question}</Text>
+      <Text style={styles.subtitle}>
+        {poll.multiple ? 'Select one or more answers' : 'Select one answer'}
+      </Text>
+
       {options.map((o) => {
         const count = votes.filter((v) => v.option === o.id).length;
         const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-        const voted = myVotes.includes(o.id);
+        const votedThis = myVotes.includes(o.id);
+        const selThis = selected.includes(o.id);
+
+        if (resultsMode) {
+          return (
+            <View key={o.id} style={[styles.optResult, votedThis && styles.optResultMine]}>
+              <View style={[styles.bar, { width: `${pct}%` }]} />
+              <View style={styles.optResultRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.optText}>{o.text}</Text>
+                  <Text style={styles.optPct}>{pct}% · {count} vote{count === 1 ? '' : 's'}</Text>
+                </View>
+                {votedThis ? (
+                  <View style={styles.check}>
+                    <Text style={styles.checkMark}>✓</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          );
+        }
         return (
-          <Pressable
-            key={o.id}
-            onPress={() => vote(o.id)}
-            style={[styles.opt, mine && { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
-            <View style={[styles.bar, { width: `${pct}%`, backgroundColor: mine ? 'rgba(255,255,255,0.28)' : theme.primarySoft }]} />
-            <View style={styles.optRow}>
-              <Text style={[styles.optText, mine && { color: '#fff' }]} numberOfLines={2}>
-                {voted ? '☑ ' : '☐ '}
-                {o.text}
-              </Text>
-              <Text style={[styles.optCount, mine && { color: '#E0E7FF' }]}>{count}</Text>
+          <Pressable key={o.id} onPress={() => toggle(o.id)} style={[styles.optSelect, selThis && styles.optSelectActive]}>
+            <Text style={styles.optText}>{o.text}</Text>
+            <View style={[styles.radio, selThis && styles.radioActive]}>
+              {selThis ? <View style={styles.radioDot} /> : null}
             </View>
           </Pressable>
         );
       })}
-      <Text style={[styles.total, mine && { color: '#C7D2FE' }]}>
-        {total} vote{total === 1 ? '' : 's'}
-      </Text>
+
+      {!resultsMode ? (
+        <Pressable
+          style={[styles.actionBtn, styles.voteBtn, selected.length === 0 && styles.voteBtnOff]}
+          onPress={submitVote}
+          disabled={selected.length === 0}>
+          <Text style={[styles.voteText, selected.length === 0 && { color: '#C7C4E8' }]}>Vote</Text>
+        </Pressable>
+      ) : hasVoted && !closed ? (
+        <Pressable style={[styles.actionBtn, styles.removeBtn]} onPress={removeVote}>
+          <Text style={styles.removeText}>Remove Vote</Text>
+        </Pressable>
+      ) : null}
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          {total} vote{total === 1 ? '' : 's'}
+          {poll.closes_at ? ` · ${timeLeft(poll.closes_at)}` : ''}
+        </Text>
+        {!hasVoted && !closed ? (
+          <Pressable onPress={() => setShowResults((s) => !s)} hitSlop={8}>
+            <Text style={styles.footerLink}>{showResults ? 'Back to vote' : 'Show results'}</Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { minWidth: 230 },
-  q: { fontSize: 15.5, fontWeight: '700', color: theme.text, marginBottom: 6 },
-  sub: { fontSize: 12, color: theme.textMuted, marginBottom: 6 },
-  opt: { marginVertical: 3, borderRadius: 10, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.04)', minHeight: 38, justifyContent: 'center' },
-  bar: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 10 },
-  optRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9 },
-  optText: { fontSize: 14.5, color: theme.text, flex: 1 },
-  optCount: { fontSize: 13, fontWeight: '700', color: theme.textMuted, marginLeft: 8 },
-  total: { fontSize: 12, color: theme.textMuted, marginTop: 4 },
+  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, ...{ shadowColor: '#2A1F6E', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 } },
+  title: { fontSize: 18, fontWeight: '800', color: theme.text },
+  subtitle: { fontSize: 13.5, color: theme.textMuted, marginTop: 3, marginBottom: 12 },
+  optSelect: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#F3F2F9', borderRadius: 12, borderWidth: 1.5, borderColor: 'transparent',
+    paddingHorizontal: 16, paddingVertical: 15, marginBottom: 10,
+  },
+  optSelectActive: { borderColor: theme.primary, backgroundColor: theme.primarySoft },
+  optText: { fontSize: 15.5, fontWeight: '600', color: theme.text, flex: 1, paddingRight: 10 },
+  radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#C4C2D6', alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: theme.primary },
+  radioDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: theme.primary },
+  optResult: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#F3F2F9', marginBottom: 10, minHeight: 54, justifyContent: 'center' },
+  optResultMine: { borderWidth: 1.5, borderColor: theme.primary },
+  bar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: theme.primarySoft },
+  optResultRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 },
+  optPct: { fontSize: 13, color: theme.textMuted, marginTop: 2, fontWeight: '600' },
+  check: { width: 26, height: 26, borderRadius: 13, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  checkMark: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  actionBtn: { borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 2 },
+  voteBtn: { backgroundColor: theme.primary },
+  voteBtnOff: { backgroundColor: '#DEDCF3' },
+  voteText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  removeBtn: { backgroundColor: '#F3F2F9' },
+  removeText: { color: theme.text, fontSize: 16, fontWeight: '700' },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  footerText: { fontSize: 13, color: theme.textMuted },
+  footerLink: { fontSize: 14, color: theme.primary, fontWeight: '700' },
 });

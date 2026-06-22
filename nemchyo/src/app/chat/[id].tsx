@@ -156,10 +156,6 @@ export default function Conversation() {
   const [callPick, setCallPick] = useState<{ kind: 'audio' | 'video'; members: any[] } | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
-  const [pollOpen, setPollOpen] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
-  const [pollMultiple, setPollMultiple] = useState(false);
   const [viewer, setViewer] = useState<{ uris: string[]; index: number } | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -706,25 +702,6 @@ export default function Conversation() {
     } catch {}
   }
 
-  async function createPoll() {
-    const q = pollQuestion.trim();
-    const opts = pollOptions.map((o) => o.trim()).filter(Boolean);
-    if (!q || opts.length < 2) return;
-    setPollOpen(false);
-    try {
-      const msg = await pb.collection('messages').create({ chat: id, sender: user.id, type: 'poll', body: q });
-      const poll = await pb.collection('polls').create({ message: msg.id, question: q, multiple: pollMultiple });
-      for (let i = 0; i < opts.length; i++) {
-        await pb.collection('poll_options').create({ poll: poll.id, text: opts[i], order: i });
-      }
-      setPollQuestion('');
-      setPollOptions(['', '']);
-      setPollMultiple(false);
-    } catch (e: any) {
-      Alert.alert("Couldn't create poll", e?.message || 'Please try again.');
-    }
-  }
-
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -828,13 +805,24 @@ export default function Conversation() {
               </View>
             );
           }
+          if (item.type === 'poll' && !item.deleted_for_everyone) {
+            const isSelP = selectedIds.includes(item.id);
+            return (
+              <Pressable
+                onLongPress={(e) => onMsgLongPress(item, e)}
+                onPress={() => selectionMode && toggleSelect(item)}
+                delayLongPress={260}
+                style={[styles.pollRow, isSelP && styles.rowSelected]}>
+                <PollMessage messageId={item.id} userId={user?.id} />
+              </Pressable>
+            );
+          }
           const mine = item.sender === user?.id;
           const name = item.expand?.sender?.display_name || (mine ? 'You' : 'Member');
           const deleted = item.deleted_for_everyone;
           const isImage = !deleted && item.file && item.type === 'image';
           const isVoice = !deleted && item.file && item.type === 'voice';
           const isVideo = !deleted && item.file && item.type === 'video';
-          const isPoll = !deleted && item.type === 'poll';
           const isFile = !deleted && item.file && !isImage && !isVoice && !isVideo;
           const parent = item.reply_to ? item.expand?.reply_to || messages.find((m) => m.id === item.reply_to) : null;
           const groups = grouped(item.id);
@@ -891,8 +879,6 @@ export default function Conversation() {
                         <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>Tap to open</Text>
                       </View>
                     </Pressable>
-                  ) : isPoll ? (
-                    <PollMessage messageId={item.id} mine={mine} userId={user?.id} />
                   ) : (
                     <Text style={[styles.body, mine && { color: '#fff' }]}>{item.body}</Text>
                   )}
@@ -1028,53 +1014,10 @@ export default function Conversation() {
             <Pressable style={styles.sheetRow} onPress={pickDocument}>
               <Text style={styles.sheetRowText}>📄  Document</Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setAttachOpen(false); setPollOpen(true); }}>
+            <Pressable style={styles.sheetRow} onPress={() => { setAttachOpen(false); router.push({ pathname: '/new-poll', params: { chat: id } }); }}>
               <Text style={styles.sheetRowText}>📊  Poll</Text>
             </Pressable>
             <Pressable style={styles.sheetCancel} onPress={() => setAttachOpen(false)}>
-              <Text style={styles.sheetCancelText}>Cancel</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* Create poll */}
-      <Modal visible={pollOpen} transparent animationType="fade" onRequestClose={() => setPollOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setPollOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>Create a poll</Text>
-            <TextInput
-              style={styles.pollInput}
-              placeholder="Ask a question…"
-              placeholderTextColor="#9CA3AF"
-              value={pollQuestion}
-              onChangeText={setPollQuestion}
-              maxLength={300}
-            />
-            {pollOptions.map((o, i) => (
-              <TextInput
-                key={i}
-                style={styles.pollInput}
-                placeholder={`Option ${i + 1}`}
-                placeholderTextColor="#9CA3AF"
-                value={o}
-                onChangeText={(t) => setPollOptions((prev) => prev.map((x, j) => (j === i ? t : x)))}
-                maxLength={200}
-              />
-            ))}
-            {pollOptions.length < 6 ? (
-              <Pressable onPress={() => setPollOptions((prev) => [...prev, ''])} style={styles.pollAdd}>
-                <Text style={styles.pollAddText}>+ Add option</Text>
-              </Pressable>
-            ) : null}
-            <Pressable style={styles.pollMultiRow} onPress={() => setPollMultiple((m) => !m)}>
-              <Text style={styles.pollMultiText}>Allow multiple answers</Text>
-              <Text style={{ fontSize: 20 }}>{pollMultiple ? '☑' : '☐'}</Text>
-            </Pressable>
-            <Pressable style={styles.pollCreate} onPress={createPoll}>
-              <Text style={styles.pollCreateText}>Create poll</Text>
-            </Pressable>
-            <Pressable style={styles.sheetCancel} onPress={() => setPollOpen(false)}>
               <Text style={styles.sheetCancelText}>Cancel</Text>
             </Pressable>
           </Pressable>
@@ -1229,13 +1172,7 @@ const styles = StyleSheet.create({
   sheetRowText: { fontSize: 16, color: '#111827', textAlign: 'center' },
   sheetCancel: { paddingVertical: 14, marginTop: 6 },
   sheetCancelText: { fontSize: 16, color: '#6B7280', textAlign: 'center', fontWeight: '600' },
-  pollInput: { backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: theme.text, marginVertical: 4, marginHorizontal: 6 },
-  pollAdd: { paddingVertical: 8, paddingHorizontal: 6 },
-  pollAddText: { color: theme.primary, fontSize: 15, fontWeight: '600' },
-  pollMultiRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingVertical: 12 },
-  pollMultiText: { fontSize: 15, color: theme.text },
-  pollCreate: { backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginHorizontal: 6, marginTop: 6 },
-  pollCreateText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  pollRow: { paddingVertical: 2 },
   emojiRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   emojiBtn: { padding: 6 },
 });
