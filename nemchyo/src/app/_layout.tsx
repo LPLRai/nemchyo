@@ -1,11 +1,29 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Updates from 'expo-updates';
+import { useEffect } from 'react';
 import { IncomingCallWatcher } from '@/components/incoming-call-watcher';
 import { theme } from '@/lib/theme';
 
 export const PRIMARY = theme.primary;
 
 export default function RootLayout() {
+  // Auto-apply over-the-air updates on launch, so fixes land on the next open
+  // without needing a manual double-relaunch.
+  useEffect(() => {
+    (async () => {
+      try {
+        if (Updates.isEnabled) {
+          const u = await Updates.checkForUpdateAsync();
+          if (u.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            await Updates.reloadAsync();
+          }
+        }
+      } catch {}
+    })();
+  }, []);
+
   return (
     <>
       <StatusBar style="light" />

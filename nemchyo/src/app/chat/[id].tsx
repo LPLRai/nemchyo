@@ -416,7 +416,19 @@ export default function Conversation() {
         file_name: name,
       };
       if (caption) params.body = caption;
-      const res = await FileSystem.uploadAsync(`${PB_URL}/api/collections/messages/records`, asset.uri, {
+      // The native uploader needs a readable file:// path; some pickers hand back
+      // a content:// URI, so copy it into the app cache first.
+      let uploadUri: string = asset.uri;
+      if (uploadUri && !uploadUri.startsWith('file://')) {
+        try {
+          const dest = (FileSystem.cacheDirectory || '') + `up_${Date.now()}_${name.replace(/[^\w.\-]/g, '_')}`;
+          await FileSystem.copyAsync({ from: uploadUri, to: dest });
+          uploadUri = dest;
+        } catch {
+          /* fall back to the original uri */
+        }
+      }
+      const res = await FileSystem.uploadAsync(`${PB_URL}/api/collections/messages/records`, uploadUri, {
         httpMethod: 'POST',
         uploadType: FileSystem.FileSystemUploadType.MULTIPART,
         fieldName: 'file',
@@ -440,7 +452,7 @@ export default function Conversation() {
     } catch (e: any) {
       // Surface the real cause: HTTP status + server message + per-field errors.
       const status = e?.status ?? 0;
-      const msg = e?.response?.message || e?.message || 'Unknown error';
+      const msg = e?.response?.message || e?.message || e?.code || e?.name || String(e) || 'Unknown error';
       const data = e?.response?.data || e?.data;
       let fields = '';
       if (data && typeof data === 'object') {
@@ -448,7 +460,8 @@ export default function Conversation() {
           .map(([k, v]: any) => `${k}: ${(v as any)?.message || v}`)
           .join(', ');
       }
-      Alert.alert("Couldn't send", `[${status}] ${msg}${fields ? '\n' + fields : ''}`);
+      // "v6" tag confirms which bundle is running.
+      Alert.alert("Couldn't send", `v6 [${status}] ${msg}${fields ? '\n' + fields : ''}`);
     } finally {
       setUploading(false);
     }
