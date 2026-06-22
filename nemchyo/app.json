@@ -3,7 +3,7 @@
     "name": "Nemchyo",
     "slug": "nemchyo",
     "owner": "lplrai",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "nemchyo",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.sixfriendstrekking.nemchyo",
-      "versionCode": 7,
+      "versionCode": 8,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -62,7 +62,9 @@
         }
       ],
       "expo-notifications",
-      "@config-plugins/react-native-webrtc"
+      "@config-plugins/react-native-webrtc",
+      "expo-video",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": false,
@@ -76,6 +78,9 @@
     },
     "updates": {
       "url": "https://u.expo.dev/a7ed695b-e7f6-4179-ae09-3a923de1db38"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

@@ -1,3 +1,4 @@
+import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -23,6 +24,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { ImageAlbum, ImageViewer } from '@/components/image-album';
 import { SwipeToReply } from '@/components/swipe-to-reply';
+import { VideoPlayerModal } from '@/components/video-player';
+import { VoiceMessage } from '@/components/voice-message';
 import { useAuth } from '@/lib/auth';
 import { PB_URL } from '@/lib/config';
 import { fileUrl } from '@/lib/files';
@@ -36,6 +39,11 @@ const REACT_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 // Best-effort MIME type from a filename — pickers sometimes omit it, and a
 // missing/wrong type is a common reason an upload silently fails on Android.
+function fmtMs(ms?: number): string {
+  const s = Math.floor((ms || 0) / 1000);
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+}
+
 function guessMime(name: string, fallback: string): string {
   const ext = (name.split('.').pop() || '').toLowerCase();
   const map: Record<string, string> = {
@@ -146,6 +154,11 @@ export default function Conversation() {
   const [members, setMembers] = useState<any[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
   const [viewer, setViewer] = useState<{ uris: string[]; index: number } | null>(null);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recState = useAudioRecorderState(recorder);
   const listRef = useRef<FlatList>(null);
   const lastReadWrite = useRef(0);
   const lastTypingWrite = useRef(0);
@@ -633,6 +646,38 @@ export default function Conversation() {
     }
   }
 
+  async function startRecording() {
+    try {
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow microphone access to record a voice message.');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecording(true);
+    } catch (e: any) {
+      Alert.alert("Couldn't record", e?.message || 'Please try again.');
+    }
+  }
+
+  async function stopAndSendVoice() {
+    setRecording(false);
+    try {
+      await recorder.stop();
+    } catch {}
+    const uri = recorder.uri;
+    if (uri) uploadAsset({ uri, fileName: 'voice.m4a', mimeType: 'audio/m4a' }, 'voice');
+  }
+
+  async function cancelRecording() {
+    setRecording(false);
+    try {
+      await recorder.stop();
+    } catch {}
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -749,7 +794,9 @@ export default function Conversation() {
           const name = item.expand?.sender?.display_name || (mine ? 'You' : 'Member');
           const deleted = item.deleted_for_everyone;
           const isImage = !deleted && item.file && item.type === 'image';
-          const isFile = !deleted && item.file && item.type !== 'image';
+          const isVoice = !deleted && item.file && item.type === 'voice';
+          const isVideo = !deleted && item.file && item.type === 'video';
+          const isFile = !deleted && item.file && !isImage && !isVoice && !isVideo;
           const parent = item.reply_to ? item.expand?.reply_to || messages.find((m) => m.id === item.reply_to) : null;
           const groups = grouped(item.id);
           const isSel = selectedIds.includes(item.id);
@@ -784,16 +831,25 @@ export default function Conversation() {
                       <Image source={{ uri: fileUrl(item, item.file, { thumb: '600x0' }) }} style={styles.image} contentFit="cover" />
                       {item.body ? <Text style={[styles.caption, mine && { color: '#fff' }]}>{item.body}</Text> : null}
                     </Pressable>
+                  ) : isVoice ? (
+                    <View>
+                      <VoiceMessage uri={fileUrl(item, item.file)} mine={mine} />
+                      {item.body ? <Text style={[styles.caption, mine && { color: '#fff' }, { paddingHorizontal: 0 }]}>{item.body}</Text> : null}
+                    </View>
+                  ) : isVideo ? (
+                    <Pressable style={styles.fileCard} onPress={() => (selectionMode ? toggleSelect(item) : setVideoUri(fileUrl(item, item.file)))}>
+                      <Text style={styles.fileIcon}>🎬</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>{item.file_name || 'Video'}</Text>
+                        <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>Tap to play</Text>
+                      </View>
+                    </Pressable>
                   ) : isFile ? (
                     <Pressable style={styles.fileCard} onPress={() => (selectionMode ? toggleSelect(item) : Linking.openURL(fileUrl(item, item.file)))}>
-                      <Text style={styles.fileIcon}>{item.type === 'video' ? '🎬' : item.type === 'voice' ? '🎵' : '📄'}</Text>
+                      <Text style={styles.fileIcon}>📄</Text>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>
-                          {item.file_name || (item.type === 'video' ? 'Video' : item.type === 'voice' ? 'Voice message' : 'Document')}
-                        </Text>
-                        <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>
-                          {item.type === 'video' ? 'Tap to play' : 'Tap to open'}
-                        </Text>
+                        <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>{item.file_name || 'Document'}</Text>
+                        <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>Tap to open</Text>
                       </View>
                     </Pressable>
                   ) : (
@@ -866,24 +922,56 @@ export default function Conversation() {
         </View>
       ) : null}
 
-      <View style={styles.inputBar}>
-        {!editing && (
-          <Pressable style={styles.attachBtn} onPress={() => setAttachOpen(true)} disabled={uploading} hitSlop={6}>
-            <Text style={styles.attachIcon}>＋</Text>
+      {recording ? (
+        <View style={styles.inputBar}>
+          <Pressable style={styles.attachBtn} onPress={cancelRecording} hitSlop={6}>
+            <Text style={[styles.attachIcon, { color: '#DC2626' }]}>🗑️</Text>
           </Pressable>
-        )}
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={handleType}
-          placeholder={editing ? 'Edit message' : 'Message'}
-          placeholderTextColor="#9CA3AF"
-          multiline
-        />
-        <Pressable style={({ pressed }) => [styles.sendBtn, pressed && { opacity: 0.85 }]} onPress={send}>
-          <Text style={styles.sendIcon}>{editing ? '✓' : '➤'}</Text>
-        </Pressable>
-      </View>
+          <View style={styles.recPill}>
+            <View style={styles.recDot} />
+            <Text style={styles.recText}>Recording…  {fmtMs(recState.durationMillis)}</Text>
+          </View>
+          <Pressable style={styles.sendBtn} onPress={stopAndSendVoice}>
+            <Text style={styles.sendIcon}>➤</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.inputBar}>
+          {!editing ? (
+            <Pressable style={styles.attachBtn} onPress={() => inputRef.current?.focus()} hitSlop={6}>
+              <Text style={styles.attachIcon}>😊</Text>
+            </Pressable>
+          ) : null}
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            value={text}
+            onChangeText={handleType}
+            placeholder={editing ? 'Edit message' : 'Message'}
+            placeholderTextColor="#9CA3AF"
+            multiline
+          />
+          {!editing ? (
+            <>
+              <Pressable style={styles.attachBtn} onPress={() => setAttachOpen(true)} disabled={uploading} hitSlop={6}>
+                <Text style={styles.attachIcon}>📎</Text>
+              </Pressable>
+              <Pressable style={styles.attachBtn} onPress={takePhoto} disabled={uploading} hitSlop={6}>
+                <Text style={styles.attachIcon}>📷</Text>
+              </Pressable>
+            </>
+          ) : null}
+          {text.trim() || editing ? (
+            <Pressable style={({ pressed }) => [styles.sendBtn, pressed && { opacity: 0.85 }]} onPress={send}>
+              <Text style={styles.sendIcon}>{editing ? '✓' : '➤'}</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={styles.micBtn} onPress={startRecording}>
+              <Text style={styles.micIcon}>🎤</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {/* Attachment options */}
       <Modal visible={attachOpen} transparent animationType="fade" onRequestClose={() => setAttachOpen(false)}>
@@ -968,6 +1056,8 @@ export default function Conversation() {
         index={viewer?.index ?? 0}
         onClose={() => setViewer(null)}
       />
+
+      {videoUri ? <VideoPlayerModal uri={videoUri} onClose={() => setVideoUri(null)} /> : null}
     </KeyboardAvoidingView>
   );
 }
@@ -1025,6 +1115,11 @@ const styles = StyleSheet.create({
   input: { flex: 1, maxHeight: 120, backgroundColor: '#F0F0F7', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11, fontSize: 15.5, color: theme.text },
   sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center', ...shadow.sm },
   sendIcon: { color: '#fff', fontWeight: '700', fontSize: 18, marginLeft: 2 },
+  micBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#25D366', alignItems: 'center', justifyContent: 'center', ...shadow.sm },
+  micIcon: { fontSize: 22 },
+  recPill: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEE2E2', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12 },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#DC2626' },
+  recText: { color: '#991B1B', fontSize: 14, fontWeight: '600' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 12, paddingBottom: 24 },
   sheetTitle: { fontSize: 16, fontWeight: '700', color: '#111827', textAlign: 'center', paddingVertical: 10 },
