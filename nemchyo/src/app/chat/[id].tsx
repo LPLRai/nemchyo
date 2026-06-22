@@ -383,7 +383,7 @@ export default function Conversation() {
     return Object.entries(g);
   }
 
-  async function uploadAsset(asset: any, kind: 'image' | 'video' | 'file' | 'voice') {
+  async function uploadAsset(asset: any, kind: 'image' | 'video' | 'file' | 'voice', caption = '') {
     setUploading(true);
     try {
       const defaultName =
@@ -394,11 +394,7 @@ export default function Conversation() {
       form.append('sender', user.id);
       form.append('type', kind);
       form.append('file_name', name);
-      const caption = text.trim();
-      if (caption) {
-        form.append('body', caption);
-        setText('');
-      }
+      if (caption) form.append('body', caption);
       if (Platform.OS === 'web') {
         const blob = asset.file ?? (await (await fetch(asset.uri)).blob());
         form.append('file', blob, name);
@@ -409,8 +405,17 @@ export default function Conversation() {
       }
       await pb.collection('messages').create(form);
     } catch (e: any) {
-      // Surface the failure instead of swallowing it — this was the silent-fail bug.
-      Alert.alert("Couldn't send", e?.message || 'The file could not be uploaded. Please try again.');
+      // Surface the real cause: HTTP status + server message + per-field errors.
+      const status = e?.status ?? 0;
+      const msg = e?.response?.message || e?.message || 'Unknown error';
+      const data = e?.response?.data || e?.data;
+      let fields = '';
+      if (data && typeof data === 'object') {
+        fields = Object.entries(data)
+          .map(([k, v]: any) => `${k}: ${(v as any)?.message || v}`)
+          .join(', ');
+      }
+      Alert.alert("Couldn't send", `[${status}] ${msg}${fields ? '\n' + fields : ''}`);
     } finally {
       setUploading(false);
     }
@@ -426,10 +431,20 @@ export default function Conversation() {
           return;
         }
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.8 });
-      if (!res.canceled && res.assets?.[0]) {
-        const a = res.assets[0];
-        uploadAsset(a, a.type === 'video' ? 'video' : 'image');
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        quality: 0.8,
+        allowsMultipleSelection: true,
+        selectionLimit: 10,
+      });
+      if (!res.canceled && res.assets?.length) {
+        const cap = text.trim();
+        if (cap) setText('');
+        // Upload one at a time so order is preserved; caption goes on the first only.
+        for (let i = 0; i < res.assets.length; i++) {
+          const a = res.assets[i];
+          await uploadAsset(a, a.type === 'video' ? 'video' : 'image', i === 0 ? cap : '');
+        }
       }
     } catch (e: any) {
       Alert.alert("Couldn't open the gallery", e?.message || 'Please try again.');
@@ -447,7 +462,11 @@ export default function Conversation() {
         }
       }
       const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-      if (!res.canceled && res.assets?.[0]) uploadAsset(res.assets[0], 'image');
+      if (!res.canceled && res.assets?.[0]) {
+        const cap = text.trim();
+        if (cap) setText('');
+        uploadAsset(res.assets[0], 'image', cap);
+      }
     } catch (e: any) {
       Alert.alert("Couldn't open the camera", e?.message || 'Please try again.');
     }
@@ -457,7 +476,11 @@ export default function Conversation() {
     setAttachOpen(false);
     try {
       const res = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
-      if (!res.canceled && res.assets?.[0]) uploadAsset(res.assets[0], 'file');
+      if (!res.canceled && res.assets?.[0]) {
+        const cap = text.trim();
+        if (cap) setText('');
+        uploadAsset(res.assets[0], 'file', cap);
+      }
     } catch (e: any) {
       Alert.alert("Couldn't open files", e?.message || 'Please try again.');
     }
