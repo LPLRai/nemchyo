@@ -1,5 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Redirect, Stack, useLocalSearchParams, useRouter, type ErrorBoundaryProps } from 'expo-router';
@@ -21,6 +22,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { useAuth } from '@/lib/auth';
+import { PB_URL } from '@/lib/config';
 import { fileUrl } from '@/lib/files';
 import { isMuted, MUTE_OPTIONS, muteLabel, muteUntilValue } from '@/lib/mute';
 import { pb } from '@/lib/pb';
@@ -389,21 +391,52 @@ export default function Conversation() {
       const defaultName =
         kind === 'image' ? 'photo.jpg' : kind === 'video' ? 'video.mp4' : kind === 'voice' ? 'voice.m4a' : 'file';
       const name = asset.fileName || asset.name || defaultName;
-      const form = new FormData();
-      form.append('chat', String(id));
-      form.append('sender', user.id);
-      form.append('type', kind);
-      form.append('file_name', name);
-      if (caption) form.append('body', caption);
+      const fallback = kind === 'image' ? 'image/jpeg' : kind === 'voice' ? 'audio/m4a' : 'application/octet-stream';
+      const type = asset.mimeType || guessMime(name, fallback);
+
       if (Platform.OS === 'web') {
+        const form = new FormData();
+        form.append('chat', String(id));
+        form.append('sender', user.id);
+        form.append('type', kind);
+        form.append('file_name', name);
+        if (caption) form.append('body', caption);
         const blob = asset.file ?? (await (await fetch(asset.uri)).blob());
         form.append('file', blob, name);
-      } else {
-        const fallback = kind === 'image' ? 'image/jpeg' : kind === 'voice' ? 'audio/m4a' : 'application/octet-stream';
-        const type = asset.mimeType || guessMime(name, fallback);
-        form.append('file', { uri: asset.uri, name, type } as any);
+        await pb.collection('messages').create(form);
+        return;
       }
-      await pb.collection('messages').create(form);
+
+      // Native: use expo-file-system's native multipart uploader. The plain
+      // RN FormData + fetch path silently failed to read the picked file.
+      const params: Record<string, string> = {
+        chat: String(id),
+        sender: String(user.id),
+        type: kind,
+        file_name: name,
+      };
+      if (caption) params.body = caption;
+      const res = await FileSystem.uploadAsync(`${PB_URL}/api/collections/messages/records`, asset.uri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'file',
+        mimeType: type,
+        parameters: params,
+        headers: pb.authStore.token ? { Authorization: pb.authStore.token } : {},
+      });
+      if (res.status >= 400) {
+        let serverMsg = '';
+        let data: any = null;
+        try {
+          const j = JSON.parse(res.body);
+          serverMsg = j.message || '';
+          data = j.data;
+        } catch {}
+        const err: any = new Error(serverMsg || 'Upload failed');
+        err.status = res.status;
+        err.response = { data };
+        throw err;
+      }
     } catch (e: any) {
       // Surface the real cause: HTTP status + server message + per-field errors.
       const status = e?.status ?? 0;
