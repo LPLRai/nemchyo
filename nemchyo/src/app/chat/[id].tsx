@@ -4,7 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Redirect, Stack, useLocalSearchParams, useRouter, type ErrorBoundaryProps } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
+import { ImageAlbum, ImageViewer } from '@/components/image-album';
 import { useAuth } from '@/lib/auth';
 import { PB_URL } from '@/lib/config';
 import { fileUrl } from '@/lib/files';
@@ -51,6 +52,33 @@ function previewOf(m: any): string {
   if (m.type === 'image') return '📷 Photo';
   if (m.type === 'file') return '📄 ' + (m.file_name || 'File');
   return m.body || '';
+}
+
+// Collapse runs of consecutive photos from the same sender into one album item
+// (WhatsApp-style), leaving everything else as individual messages.
+function buildRenderData(msgs: any[]): any[] {
+  const out: any[] = [];
+  let i = 0;
+  const isPhoto = (m: any) => m.file && m.type === 'image' && !m.deleted_for_everyone;
+  while (i < msgs.length) {
+    const m = msgs[i];
+    if (isPhoto(m)) {
+      const group = [m];
+      let j = i + 1;
+      while (j < msgs.length && isPhoto(msgs[j]) && msgs[j].sender === m.sender) {
+        group.push(msgs[j]);
+        j++;
+      }
+      if (group.length >= 2) {
+        out.push({ _album: true, id: 'album_' + group[0].id, sender: m.sender, items: group, expand: m.expand });
+        i = j;
+        continue;
+      }
+    }
+    out.push(m);
+    i++;
+  }
+  return out;
 }
 
 // Shown instead of a crash if anything in this screen throws.
@@ -114,6 +142,7 @@ export default function Conversation() {
   const [callPick, setCallPick] = useState<{ kind: 'audio' | 'video'; members: any[] } | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [viewer, setViewer] = useState<{ uris: string[]; index: number } | null>(null);
   const listRef = useRef<FlatList>(null);
   const lastReadWrite = useRef(0);
   const lastTypingWrite = useRef(0);
@@ -237,6 +266,7 @@ export default function Conversation() {
   const isDirectChat = chatType === 'direct';
   const headerPeer = isDirectChat ? members.find((m) => m.user !== user?.id)?.expand?.user : null;
   const headerName = isDirectChat ? headerPeer?.display_name || 'Chat' : chatName || 'Chat';
+  const renderData = useMemo(() => buildRenderData(messages), [messages]);
 
   async function startCall(callKind: 'audio' | 'video') {
     try {
@@ -575,12 +605,31 @@ export default function Conversation() {
 
       <FlatList
         ref={listRef}
-        data={messages}
+        data={renderData}
         style={styles.list}
         keyExtractor={(m) => m.id}
         contentContainerStyle={{ padding: 12, gap: 10 }}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
         renderItem={({ item }) => {
+          if (item._album) {
+            const mineA = item.sender === user?.id;
+            const nameA = item.expand?.sender?.display_name || (mineA ? 'You' : 'Member');
+            const full = item.items.map((m: any) => fileUrl(m, m.file));
+            const thumbs = item.items.slice(0, 4).map((m: any) => fileUrl(m, m.file, { thumb: '600x0' }));
+            return (
+              <View style={[styles.row, mineA ? styles.right : styles.left, { alignItems: 'flex-end', gap: 6 }]}>
+                {!mineA ? <Avatar user={item.expand?.sender} name={nameA} size={28} /> : null}
+                <View style={{ alignItems: mineA ? 'flex-end' : 'flex-start' }}>
+                  {!mineA ? <Text style={[styles.sender, { marginLeft: 2 }]}>{nameA}</Text> : null}
+                  <ImageAlbum
+                    thumbs={thumbs}
+                    total={item.items.length}
+                    onOpen={(idx) => setViewer({ uris: full, index: idx })}
+                  />
+                </View>
+              </View>
+            );
+          }
           const mine = item.sender === user?.id;
           const name = item.expand?.sender?.display_name || (mine ? 'You' : 'Member');
           const deleted = item.deleted_for_everyone;
@@ -613,7 +662,7 @@ export default function Conversation() {
                   {deleted ? (
                     <Text style={[styles.deleted, mine && { color: '#E0E7FF' }]}>🚫 This message was deleted</Text>
                   ) : isImage ? (
-                    <Pressable onPress={() => Linking.openURL(fileUrl(item, item.file))}>
+                    <Pressable onPress={() => setViewer({ uris: [fileUrl(item, item.file)], index: 0 })}>
                       <Image source={{ uri: fileUrl(item, item.file, { thumb: '600x0' }) }} style={styles.image} contentFit="cover" />
                       {item.body ? <Text style={[styles.caption, mine && { color: '#fff' }]}>{item.body}</Text> : null}
                     </Pressable>
@@ -803,6 +852,12 @@ export default function Conversation() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <ImageViewer
+        uris={viewer?.uris ?? null}
+        index={viewer?.index ?? 0}
+        onClose={() => setViewer(null)}
+      />
     </KeyboardAvoidingView>
   );
 }
