@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   KeyboardAvoidingView,
   Linking,
@@ -148,6 +149,7 @@ export default function Conversation() {
   const [replyTo, setReplyTo] = useState<any>(null);
   const [editing, setEditing] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [reactBar, setReactBar] = useState<{ id: string; y: number } | null>(null);
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardChats, setForwardChats] = useState<any[]>([]);
   const [callPick, setCallPick] = useState<{ kind: 'audio' | 'video'; members: any[] } | null>(null);
@@ -287,6 +289,18 @@ export default function Conversation() {
   const selMsgs = messages.filter((m) => selectedIds.includes(m.id));
   const oneSel = selMsgs.length === 1 ? selMsgs[0] : null;
   const allOwnSel = selMsgs.length > 0 && selMsgs.every((m) => m.sender === user?.id);
+
+  // Position the floating reaction bar near where the finger pressed, but always
+  // fully on screen (the bar itself is full-width, so it never overflows sideways).
+  const REACT_BAR_H = 56;
+  const headerOffset = insets.top + 56; // nav header height ≈ status bar + 56
+  let reactTop = 8;
+  if (reactBar) {
+    const winH = Dimensions.get('window').height;
+    reactTop = reactBar.y - headerOffset - REACT_BAR_H - 10; // above the press
+    if (reactTop < 8) reactTop = reactBar.y - headerOffset + 16; // too high → show below
+    reactTop = Math.max(8, Math.min(reactTop, winH - headerOffset - REACT_BAR_H - 120));
+  }
 
   async function startCall(callKind: 'audio' | 'video') {
     try {
@@ -433,12 +447,21 @@ export default function Conversation() {
   function enterSelection(message: any) {
     setSelectedIds((prev) => (prev.includes(message.id) ? prev : [...prev, message.id]));
   }
+  // Long-press anywhere on a message row: select it and pop the reaction bar
+  // near where the finger pressed.
+  function onMsgLongPress(message: any, e: any) {
+    if (message.deleted_for_everyone) return;
+    enterSelection(message);
+    setReactBar({ id: message.id, y: e?.nativeEvent?.pageY ?? 0 });
+  }
   function toggleSelect(message: any) {
+    setReactBar(null);
     setSelectedIds((prev) =>
       prev.includes(message.id) ? prev.filter((x) => x !== message.id) : [...prev, message.id]
     );
   }
   function exitSelection() {
+    setReactBar(null);
     setSelectedIds([]);
   }
 
@@ -745,15 +768,6 @@ export default function Conversation() {
               </Pressable>
             ) : null}
           </View>
-          {oneSel && !oneSel.deleted_for_everyone ? (
-            <View style={styles.selEmojiRow}>
-              {REACT_EMOJIS.map((em) => (
-                <Pressable key={em} onPress={() => oneSel && toggleReaction(oneSel, em)} hitSlop={6}>
-                  <Text style={{ fontSize: 26 }}>{em}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
         </View>
       ) : null}
 
@@ -802,15 +816,15 @@ export default function Conversation() {
           const isSel = selectedIds.includes(item.id);
 
           return (
-            <View style={[styles.row, mine ? styles.right : styles.left, { alignItems: 'flex-end', gap: 6 }, isSel && styles.rowSelected]}>
+            <Pressable
+              onLongPress={(e) => onMsgLongPress(item, e)}
+              onPress={() => selectionMode && toggleSelect(item)}
+              delayLongPress={260}
+              style={[styles.row, mine ? styles.right : styles.left, { alignItems: 'flex-end', gap: 6 }, isSel && styles.rowSelected]}>
               {!mine ? <Avatar user={item.expand?.sender} name={name} size={28} /> : null}
               <SwipeToReply mine={mine} onReply={() => { if (!selectionMode && !deleted) startReply(item); }}>
               <View style={{ maxWidth: '80%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
-                <Pressable
-                  onLongPress={() => !deleted && enterSelection(item)}
-                  onPress={() => selectionMode && toggleSelect(item)}
-                  delayLongPress={250}
-                  style={[styles.bubble, mine ? styles.mine : styles.theirs, isImage && styles.bubbleMedia]}>
+                <View style={[styles.bubble, mine ? styles.mine : styles.theirs, isImage && styles.bubbleMedia]}>
                   {!mine && !deleted && <Text style={styles.sender}>{name}</Text>}
 
                   {parent ? (
@@ -827,7 +841,7 @@ export default function Conversation() {
                   {deleted ? (
                     <Text style={[styles.deleted, mine && { color: '#E0E7FF' }]}>🚫 This message was deleted</Text>
                   ) : isImage ? (
-                    <Pressable onPress={() => (selectionMode ? toggleSelect(item) : setViewer({ uris: [fileUrl(item, item.file)], index: 0 }))}>
+                    <Pressable onLongPress={(e) => onMsgLongPress(item, e)} delayLongPress={260} onPress={() => (selectionMode ? toggleSelect(item) : setViewer({ uris: [fileUrl(item, item.file)], index: 0 }))}>
                       <Image source={{ uri: fileUrl(item, item.file, { thumb: '600x0' }) }} style={styles.image} contentFit="cover" />
                       {item.body ? <Text style={[styles.caption, mine && { color: '#fff' }]}>{item.body}</Text> : null}
                     </Pressable>
@@ -837,7 +851,7 @@ export default function Conversation() {
                       {item.body ? <Text style={[styles.caption, mine && { color: '#fff' }, { paddingHorizontal: 0 }]}>{item.body}</Text> : null}
                     </View>
                   ) : isVideo ? (
-                    <Pressable style={styles.fileCard} onPress={() => (selectionMode ? toggleSelect(item) : setVideoUri(fileUrl(item, item.file)))}>
+                    <Pressable style={styles.fileCard} onLongPress={(e) => onMsgLongPress(item, e)} delayLongPress={260} onPress={() => (selectionMode ? toggleSelect(item) : setVideoUri(fileUrl(item, item.file)))}>
                       <Text style={styles.fileIcon}>🎬</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>{item.file_name || 'Video'}</Text>
@@ -845,7 +859,7 @@ export default function Conversation() {
                       </View>
                     </Pressable>
                   ) : isFile ? (
-                    <Pressable style={styles.fileCard} onPress={() => (selectionMode ? toggleSelect(item) : Linking.openURL(fileUrl(item, item.file)))}>
+                    <Pressable style={styles.fileCard} onLongPress={(e) => onMsgLongPress(item, e)} delayLongPress={260} onPress={() => (selectionMode ? toggleSelect(item) : Linking.openURL(fileUrl(item, item.file)))}>
                       <Text style={styles.fileIcon}>📄</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>{item.file_name || 'Document'}</Text>
@@ -868,7 +882,7 @@ export default function Conversation() {
                       ) : null}
                     </View>
                   ) : null}
-                </Pressable>
+                </View>
 
                 {groups.length > 0 ? (
                   <View style={styles.reactRow}>
@@ -887,7 +901,7 @@ export default function Conversation() {
                 ) : null}
               </View>
               </SwipeToReply>
-            </View>
+            </Pressable>
           );
         }}
       />
@@ -1058,6 +1072,18 @@ export default function Conversation() {
       />
 
       {videoUri ? <VideoPlayerModal uri={videoUri} onClose={() => setVideoUri(null)} /> : null}
+
+      {reactBar && oneSel && !oneSel.deleted_for_everyone ? (
+        <View pointerEvents="box-none" style={styles.reactFloatWrap}>
+          <View style={[styles.reactFloat, { top: reactTop }]}>
+            {REACT_EMOJIS.map((em) => (
+              <Pressable key={em} onPress={() => oneSel && toggleReaction(oneSel, em)} hitSlop={6} style={styles.reactFloatBtn}>
+                <Text style={{ fontSize: 28 }}>{em}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -1066,6 +1092,9 @@ const styles = StyleSheet.create({
   mutedBanner: { backgroundColor: '#FEF3C7', paddingVertical: 6, paddingHorizontal: 14, alignItems: 'center' },
   mutedText: { color: '#92400E', fontSize: 12, fontWeight: '600' },
   rowSelected: { backgroundColor: 'rgba(99,89,242,0.12)', marginVertical: -3, paddingVertical: 3 },
+  reactFloatWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 },
+  reactFloat: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: '#fff', borderRadius: 30, paddingVertical: 8, paddingHorizontal: 8, ...shadow.lg },
+  reactFloatBtn: { paddingHorizontal: 4, paddingVertical: 2 },
   selBarWrap: { backgroundColor: theme.primaryDark },
   selBar: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 14, paddingVertical: 10 },
   selX: { color: '#fff', fontSize: 20, fontWeight: '700' },
