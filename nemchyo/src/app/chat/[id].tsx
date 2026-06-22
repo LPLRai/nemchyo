@@ -937,7 +937,7 @@ export default function Conversation() {
       ) : null}
 
       {recording ? (
-        <View style={styles.inputBar}>
+        <View style={[styles.inputBar, { paddingBottom: 9 + insets.bottom }]}>
           <Pressable style={styles.attachBtn} onPress={cancelRecording} hitSlop={6}>
             <Text style={[styles.attachIcon, { color: '#DC2626' }]}>🗑️</Text>
           </Pressable>
@@ -950,7 +950,7 @@ export default function Conversation() {
           </Pressable>
         </View>
       ) : (
-        <View style={styles.inputBar}>
+        <View style={[styles.inputBar, { paddingBottom: 9 + insets.bottom }]}>
           {!editing ? (
             <Pressable style={styles.attachBtn} onPress={() => inputRef.current?.focus()} hitSlop={6}>
               <Text style={styles.attachIcon}>😊</Text>
@@ -1113,7 +1113,7 @@ const styles = StyleSheet.create({
   body: { fontSize: 15.5, color: theme.text, lineHeight: 21 },
   caption: { fontSize: 14, color: '#111827', lineHeight: 19, paddingHorizontal: 8, paddingTop: 6 },
   image: { width: 220, height: 220, borderRadius: 12, backgroundColor: '#E5E7EB' },
-  fileCard: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 180 },
+  fileCard: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 180, maxWidth: 240 },
   fileIcon: { fontSize: 26 },
   fileName: { fontSize: 15, fontWeight: '600', color: '#111827' },
   fileHint: { fontSize: 12, color: '#6B7280', marginTop: 1 },

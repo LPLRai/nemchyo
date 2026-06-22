@@ -43,10 +43,10 @@ export function VoiceMessage({ uri, mine }: { uri: string; mine: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 180, paddingVertical: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 2 },
   btn: { width: 26, alignItems: 'center' },
   icon: { fontSize: 17, fontWeight: '700' },
-  track: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden' },
+  track: { width: 130, height: 4, borderRadius: 2, overflow: 'hidden' },
   fill: { height: 4, borderRadius: 2 },
   time: { fontSize: 12, minWidth: 32 },
 });
