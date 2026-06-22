@@ -22,6 +22,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { ImageAlbum, ImageViewer } from '@/components/image-album';
+import { SwipeToReply } from '@/components/swipe-to-reply';
 import { useAuth } from '@/lib/auth';
 import { PB_URL } from '@/lib/config';
 import { fileUrl } from '@/lib/files';
@@ -138,7 +139,9 @@ export default function Conversation() {
   const [muteVisible, setMuteVisible] = useState(false);
   const [replyTo, setReplyTo] = useState<any>(null);
   const [editing, setEditing] = useState<any>(null);
-  const [actionTarget, setActionTarget] = useState<any>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardChats, setForwardChats] = useState<any[]>([]);
   const [callPick, setCallPick] = useState<{ kind: 'audio' | 'video'; members: any[] } | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -267,6 +270,10 @@ export default function Conversation() {
   const headerPeer = isDirectChat ? members.find((m) => m.user !== user?.id)?.expand?.user : null;
   const headerName = isDirectChat ? headerPeer?.display_name || 'Chat' : chatName || 'Chat';
   const renderData = useMemo(() => buildRenderData(messages), [messages]);
+  const selectionMode = selectedIds.length > 0;
+  const selMsgs = messages.filter((m) => selectedIds.includes(m.id));
+  const oneSel = selMsgs.length === 1 ? selMsgs[0] : null;
+  const allOwnSel = selMsgs.length > 0 && selMsgs.every((m) => m.sender === user?.id);
 
   async function startCall(callKind: 'audio' | 'video') {
     try {
@@ -376,7 +383,7 @@ export default function Conversation() {
   }
 
   async function toggleReaction(message: any, emoji: string) {
-    setActionTarget(null);
+    exitSelection();
     const mine = (reactions[message.id] || []).find((r) => r.emoji === emoji && r.user === user.id);
     try {
       if (mine) await pb.collection('reactions').delete(mine.id);
@@ -385,28 +392,92 @@ export default function Conversation() {
   }
 
   async function deleteForEveryone(message: any) {
-    setActionTarget(null);
+    exitSelection();
     try {
       await pb.collection('messages').update(message.id, { deleted_for_everyone: true, body: '' });
     } catch {}
   }
 
   function startReply(message: any) {
-    setActionTarget(null);
+    exitSelection();
     setEditing(null);
     setReplyTo(message);
   }
   function startEdit(message: any) {
-    setActionTarget(null);
+    exitSelection();
     setReplyTo(null);
     setEditing(message);
     setText(message.body || '');
   }
   async function copyMessage(message: any) {
-    setActionTarget(null);
+    exitSelection();
     try {
       await Clipboard.setStringAsync(message.body || '');
     } catch {}
+  }
+
+  // ---- selection mode (long-press → select; tap toggles more) --------------
+  function enterSelection(message: any) {
+    setSelectedIds((prev) => (prev.includes(message.id) ? prev : [...prev, message.id]));
+  }
+  function toggleSelect(message: any) {
+    setSelectedIds((prev) =>
+      prev.includes(message.id) ? prev.filter((x) => x !== message.id) : [...prev, message.id]
+    );
+  }
+  function exitSelection() {
+    setSelectedIds([]);
+  }
+
+  async function openForward() {
+    try {
+      const cs = await pb.collection('chats').getFullList({ sort: '-updated' });
+      setForwardChats(cs);
+    } catch {}
+    setForwardOpen(true);
+  }
+
+  async function deleteSelected() {
+    const own = messages.filter((m) => selectedIds.includes(m.id) && m.sender === user?.id);
+    exitSelection();
+    for (const m of own) {
+      try {
+        await pb.collection('messages').update(m.id, { deleted_for_everyone: true, body: '' });
+      } catch {}
+    }
+  }
+
+  // Forward the selected messages into another chat (text re-sent; files are
+  // downloaded then re-uploaded with the native uploader).
+  async function forwardTo(chatId: string) {
+    setForwardOpen(false);
+    const msgs = messages.filter((m) => selectedIds.includes(m.id) && !m.deleted_for_everyone);
+    exitSelection();
+    for (const m of msgs) {
+      try {
+        if (m.file) {
+          const safe = (m.file_name || 'file').replace(/[^\w.\-]/g, '_');
+          const tmp = (FileSystem.cacheDirectory || '') + `fwd_${Date.now()}_${safe}`;
+          const dl = await FileSystem.downloadAsync(fileUrl(m, m.file), tmp);
+          const params: Record<string, string> = {
+            chat: chatId,
+            sender: String(user.id),
+            type: m.type,
+            file_name: m.file_name || 'file',
+          };
+          if (m.body) params.body = m.body;
+          await FileSystem.uploadAsync(`${PB_URL}/api/collections/messages/records`, dl.uri, {
+            httpMethod: 'POST',
+            uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+            fieldName: 'file',
+            parameters: params,
+            headers: pb.authStore.token ? { Authorization: pb.authStore.token } : {},
+          });
+        } else if (m.body) {
+          await pb.collection('messages').create({ chat: chatId, sender: user.id, type: 'text', body: m.body });
+        }
+      } catch {}
+    }
   }
 
   function grouped(mid: string): [string, number][] {
@@ -597,6 +668,50 @@ export default function Conversation() {
         }}
       />
 
+      {selectionMode ? (
+        <View style={styles.selBarWrap}>
+          <View style={styles.selBar}>
+            <Pressable onPress={exitSelection} hitSlop={10}>
+              <Text style={styles.selX}>✕</Text>
+            </Pressable>
+            <Text style={styles.selCount}>{selectedIds.length} selected</Text>
+            <View style={{ flex: 1 }} />
+            {oneSel && !oneSel.deleted_for_everyone ? (
+              <Pressable onPress={() => oneSel && startReply(oneSel)} hitSlop={8}>
+                <Text style={styles.selAction}>Reply</Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={openForward} hitSlop={8}>
+              <Text style={styles.selAction}>Forward</Text>
+            </Pressable>
+            {oneSel?.body ? (
+              <Pressable onPress={() => oneSel && copyMessage(oneSel)} hitSlop={8}>
+                <Text style={styles.selAction}>Copy</Text>
+              </Pressable>
+            ) : null}
+            {oneSel && oneSel.sender === user?.id && oneSel.type === 'text' ? (
+              <Pressable onPress={() => oneSel && startEdit(oneSel)} hitSlop={8}>
+                <Text style={styles.selAction}>Edit</Text>
+              </Pressable>
+            ) : null}
+            {allOwnSel ? (
+              <Pressable onPress={deleteSelected} hitSlop={8}>
+                <Text style={[styles.selAction, { color: '#FCA5A5' }]}>Delete</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {oneSel && !oneSel.deleted_for_everyone ? (
+            <View style={styles.selEmojiRow}>
+              {REACT_EMOJIS.map((em) => (
+                <Pressable key={em} onPress={() => oneSel && toggleReaction(oneSel, em)} hitSlop={6}>
+                  <Text style={{ fontSize: 26 }}>{em}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       {muted ? (
         <View style={styles.mutedBanner}>
           <Text style={styles.mutedText}>{muteLabel(membership?.muted_until)} · you won&apos;t get notifications</Text>
@@ -637,13 +752,16 @@ export default function Conversation() {
           const isFile = !deleted && item.file && item.type !== 'image';
           const parent = item.reply_to ? item.expand?.reply_to || messages.find((m) => m.id === item.reply_to) : null;
           const groups = grouped(item.id);
+          const isSel = selectedIds.includes(item.id);
 
           return (
-            <View style={[styles.row, mine ? styles.right : styles.left, { alignItems: 'flex-end', gap: 6 }]}>
+            <View style={[styles.row, mine ? styles.right : styles.left, { alignItems: 'flex-end', gap: 6 }, isSel && styles.rowSelected]}>
               {!mine ? <Avatar user={item.expand?.sender} name={name} size={28} /> : null}
+              <SwipeToReply mine={mine} onReply={() => { if (!selectionMode && !deleted) startReply(item); }}>
               <View style={{ maxWidth: '80%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
                 <Pressable
-                  onLongPress={() => !deleted && setActionTarget(item)}
+                  onLongPress={() => !deleted && enterSelection(item)}
+                  onPress={() => selectionMode && toggleSelect(item)}
                   delayLongPress={250}
                   style={[styles.bubble, mine ? styles.mine : styles.theirs, isImage && styles.bubbleMedia]}>
                   {!mine && !deleted && <Text style={styles.sender}>{name}</Text>}
@@ -662,12 +780,12 @@ export default function Conversation() {
                   {deleted ? (
                     <Text style={[styles.deleted, mine && { color: '#E0E7FF' }]}>🚫 This message was deleted</Text>
                   ) : isImage ? (
-                    <Pressable onPress={() => setViewer({ uris: [fileUrl(item, item.file)], index: 0 })}>
+                    <Pressable onPress={() => (selectionMode ? toggleSelect(item) : setViewer({ uris: [fileUrl(item, item.file)], index: 0 }))}>
                       <Image source={{ uri: fileUrl(item, item.file, { thumb: '600x0' }) }} style={styles.image} contentFit="cover" />
                       {item.body ? <Text style={[styles.caption, mine && { color: '#fff' }]}>{item.body}</Text> : null}
                     </Pressable>
                   ) : isFile ? (
-                    <Pressable style={styles.fileCard} onPress={() => Linking.openURL(fileUrl(item, item.file))}>
+                    <Pressable style={styles.fileCard} onPress={() => (selectionMode ? toggleSelect(item) : Linking.openURL(fileUrl(item, item.file)))}>
                       <Text style={styles.fileIcon}>{item.type === 'video' ? '🎬' : item.type === 'voice' ? '🎵' : '📄'}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>
@@ -712,6 +830,7 @@ export default function Conversation() {
                   </View>
                 ) : null}
               </View>
+              </SwipeToReply>
             </View>
           );
         }}
@@ -827,28 +946,19 @@ export default function Conversation() {
         </Pressable>
       </Modal>
 
-      {/* Message actions sheet */}
-      <Modal visible={!!actionTarget} transparent animationType="fade" onRequestClose={() => setActionTarget(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setActionTarget(null)}>
+      {/* Forward to a chat */}
+      <Modal visible={forwardOpen} transparent animationType="fade" onRequestClose={() => setForwardOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setForwardOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.emojiRow}>
-              {REACT_EMOJIS.map((em) => (
-                <Pressable key={em} onPress={() => actionTarget && toggleReaction(actionTarget, em)} style={styles.emojiBtn}>
-                  <Text style={{ fontSize: 26 }}>{em}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <Pressable style={styles.sheetRow} onPress={() => actionTarget && startReply(actionTarget)}><Text style={styles.sheetRowText}>↩️  Reply</Text></Pressable>
-            {actionTarget?.body ? (
-              <Pressable style={styles.sheetRow} onPress={() => actionTarget && copyMessage(actionTarget)}><Text style={styles.sheetRowText}>📋  Copy</Text></Pressable>
-            ) : null}
-            {actionTarget?.sender === user?.id && actionTarget?.type === 'text' ? (
-              <Pressable style={styles.sheetRow} onPress={() => actionTarget && startEdit(actionTarget)}><Text style={styles.sheetRowText}>✏️  Edit</Text></Pressable>
-            ) : null}
-            {actionTarget?.sender === user?.id ? (
-              <Pressable style={styles.sheetRow} onPress={() => actionTarget && deleteForEveryone(actionTarget)}><Text style={[styles.sheetRowText, { color: '#DC2626' }]}>🗑️  Delete for everyone</Text></Pressable>
-            ) : null}
-            <Pressable style={styles.sheetCancel} onPress={() => setActionTarget(null)}><Text style={styles.sheetCancelText}>Cancel</Text></Pressable>
+            <Text style={styles.sheetTitle}>Forward to…</Text>
+            {forwardChats.map((c) => (
+              <Pressable key={c.id} style={styles.sheetRow} onPress={() => forwardTo(c.id)}>
+                <Text style={styles.sheetRowText}>{c.name || (c.type === 'direct' ? 'Direct message' : 'Chat')}</Text>
+              </Pressable>
+            ))}
+            <Pressable style={styles.sheetCancel} onPress={() => setForwardOpen(false)}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -865,6 +975,13 @@ export default function Conversation() {
 const styles = StyleSheet.create({
   mutedBanner: { backgroundColor: '#FEF3C7', paddingVertical: 6, paddingHorizontal: 14, alignItems: 'center' },
   mutedText: { color: '#92400E', fontSize: 12, fontWeight: '600' },
+  rowSelected: { backgroundColor: 'rgba(99,89,242,0.12)', marginVertical: -3, paddingVertical: 3 },
+  selBarWrap: { backgroundColor: theme.primaryDark },
+  selBar: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 14, paddingVertical: 10 },
+  selX: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  selCount: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  selAction: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  selEmojiRow: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingBottom: 10, backgroundColor: theme.primarySoft },
   list: { flex: 1, backgroundColor: theme.chatBg },
   row: { flexDirection: 'row' },
   left: { justifyContent: 'flex-start' },
