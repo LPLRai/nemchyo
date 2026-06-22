@@ -835,8 +835,8 @@ export default function Conversation() {
               delayLongPress={260}
               style={[styles.row, mine ? styles.right : styles.left, { alignItems: 'flex-end', gap: 6 }, isSel && styles.rowSelected]}>
               {!mine ? <Avatar user={item.expand?.sender} name={name} size={28} /> : null}
-              <SwipeToReply mine={mine} onReply={() => { if (!selectionMode && !deleted) startReply(item); }}>
               <View style={{ maxWidth: '80%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
+                <SwipeToReply mine={mine} onReply={() => { if (!selectionMode && !deleted) startReply(item); }}>
                 <View style={[styles.bubble, mine ? styles.mine : styles.theirs, isImage && styles.bubbleMedia]}>
                   {!mine && !deleted && <Text style={styles.sender}>{name}</Text>}
 
@@ -896,6 +896,7 @@ export default function Conversation() {
                     </View>
                   ) : null}
                 </View>
+                </SwipeToReply>
 
                 {groups.length > 0 ? (
                   <View style={styles.reactRow}>
@@ -913,7 +914,6 @@ export default function Conversation() {
                   </View>
                 ) : null}
               </View>
-              </SwipeToReply>
             </Pressable>
           );
         }}
