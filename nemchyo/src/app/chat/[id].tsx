@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   FlatList,
   KeyboardAvoidingView,
@@ -55,6 +56,31 @@ function guessMime(name: string, fallback: string): string {
     pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   };
   return map[ext] || fallback;
+}
+
+// Wraps every occurrence of `query` in the text with a highlight style.
+function HighlightText({ text, query, style, hl }: { text: string; query: string; style: any; hl: any }) {
+  const q = query.trim();
+  if (!q || !text) return <Text style={style}>{text}</Text>;
+  const lower = text.toLowerCase();
+  const ql = q.toLowerCase();
+  const parts: { t: string; h: boolean }[] = [];
+  let i = 0;
+  while (i < text.length) {
+    const idx = lower.indexOf(ql, i);
+    if (idx === -1) {
+      parts.push({ t: text.slice(i), h: false });
+      break;
+    }
+    if (idx > i) parts.push({ t: text.slice(i, idx), h: false });
+    parts.push({ t: text.slice(idx, idx + ql.length), h: true });
+    i = idx + ql.length;
+  }
+  return (
+    <Text style={style}>
+      {parts.map((p, k) => (p.h ? <Text key={k} style={hl}>{p.t}</Text> : <Text key={k}>{p.t}</Text>))}
+    </Text>
+  );
 }
 
 function previewOf(m: any): string {
@@ -156,6 +182,12 @@ export default function Conversation() {
   const [callPick, setCallPick] = useState<{ kind: 'audio' | 'video'; members: any[] } | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [searchMode, setSearchMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [matches, setMatches] = useState<string[]>([]);
+  const [matchIdx, setMatchIdx] = useState(0);
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const flashAnim = useRef(new Animated.Value(0)).current;
   const [viewer, setViewer] = useState<{ uris: string[]; index: number } | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -702,6 +734,65 @@ export default function Conversation() {
     } catch {}
   }
 
+  // ---- in-chat search: highlight matches + ▲/▼ navigation + flash --------
+  function scrollToMatchId(msgId: string) {
+    const idx = renderData.findIndex(
+      (it: any) => it.id === msgId || (it._album && it.items?.some((m: any) => m.id === msgId))
+    );
+    if (idx >= 0) {
+      try {
+        listRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+      } catch {}
+    }
+  }
+
+  // The box that lights up then dims — only on ▲/▼.
+  function flashMatch(msgId: string) {
+    setFlashId(msgId);
+    flashAnim.setValue(1);
+    Animated.timing(flashAnim, { toValue: 0, duration: 1000, useNativeDriver: true }).start();
+    scrollToMatchId(msgId);
+  }
+
+  function runSearch(q: string) {
+    setSearchQuery(q);
+    const query = q.trim().toLowerCase();
+    if (!query) {
+      setMatches([]);
+      setMatchIdx(0);
+      return;
+    }
+    const found = messages
+      .filter((m) => !m.deleted_for_everyone && (m.body || '').toLowerCase().includes(query))
+      .map((m) => m.id);
+    setMatches(found);
+    if (found.length > 0) {
+      const last = found.length - 1;
+      setMatchIdx(last);
+      scrollToMatchId(found[last]); // highlight + scroll, no flash yet
+    } else {
+      setMatchIdx(0);
+    }
+  }
+
+  // ▲ = up (earlier), ▼ = down (later). matches are oldest→newest.
+  function navMatch(dir: -1 | 1) {
+    if (matches.length === 0) return;
+    let next = matchIdx + dir;
+    if (next < 0) next = 0;
+    if (next > matches.length - 1) next = matches.length - 1;
+    setMatchIdx(next);
+    flashMatch(matches[next]);
+  }
+
+  function exitSearch() {
+    setSearchMode(false);
+    setSearchQuery('');
+    setMatches([]);
+    setMatchIdx(0);
+    setFlashId(null);
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -729,6 +820,9 @@ export default function Conversation() {
                   <Text style={{ fontSize: 19 }}>🎥</Text>
                 </Pressable>
               ) : null}
+              <Pressable onPress={() => setSearchMode(true)} hitSlop={8}>
+                <Text style={{ fontSize: 18 }}>🔍</Text>
+              </Pressable>
               <Pressable onPress={() => setMuteVisible(true)} hitSlop={10}>
                 <Text style={{ fontSize: 20 }}>{muted ? '🔕' : '🔔'}</Text>
               </Pressable>
@@ -736,6 +830,30 @@ export default function Conversation() {
           ),
         }}
       />
+
+      {searchMode ? (
+        <View style={styles.searchBar}>
+          <Pressable onPress={exitSearch} hitSlop={10}>
+            <Text style={styles.searchX}>✕</Text>
+          </Pressable>
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={runSearch}
+            placeholder="Search in this chat"
+            placeholderTextColor="#9CA3AF"
+            autoFocus
+            returnKeyType="search"
+          />
+          <Text style={styles.searchCount}>{matches.length ? `${matchIdx + 1}/${matches.length}` : '0'}</Text>
+          <Pressable onPress={() => navMatch(-1)} hitSlop={8} disabled={matches.length === 0}>
+            <Text style={[styles.searchArrow, matches.length === 0 && { opacity: 0.3 }]}>▲</Text>
+          </Pressable>
+          <Pressable onPress={() => navMatch(1)} hitSlop={8} disabled={matches.length === 0}>
+            <Text style={[styles.searchArrow, matches.length === 0 && { opacity: 0.3 }]}>▼</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {selectionMode ? (
         <View style={styles.selBarWrap}>
@@ -783,8 +901,19 @@ export default function Conversation() {
         data={renderData}
         style={styles.list}
         keyExtractor={(m) => m.id}
+        extraData={`${searchQuery}|${flashId}|${selectedIds.length}`}
         contentContainerStyle={{ padding: 12, gap: 10 }}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => {
+          if (!searchMode) listRef.current?.scrollToEnd({ animated: true });
+        }}
+        onScrollToIndexFailed={(info) => {
+          listRef.current?.scrollToOffset({ offset: Math.max(0, info.averageItemLength * info.index - 100), animated: true });
+          setTimeout(() => {
+            try {
+              listRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
+            } catch {}
+          }, 350);
+        }}
         renderItem={({ item }) => {
           if (item._album) {
             const mineA = item.sender === user?.id;
@@ -834,6 +963,9 @@ export default function Conversation() {
               onPress={() => selectionMode && toggleSelect(item)}
               delayLongPress={260}
               style={[styles.row, mine ? styles.right : styles.left, { alignItems: 'flex-end', gap: 6 }, isSel && styles.rowSelected]}>
+              {flashId === item.id ? (
+                <Animated.View pointerEvents="none" style={[styles.flashBox, { opacity: flashAnim }]} />
+              ) : null}
               {!mine ? <Avatar user={item.expand?.sender} name={name} size={28} /> : null}
               <View style={{ maxWidth: '80%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
                 <SwipeToReply mine={mine} onReply={() => { if (!selectionMode && !deleted) startReply(item); }}>
@@ -880,7 +1012,12 @@ export default function Conversation() {
                       </View>
                     </Pressable>
                   ) : (
-                    <Text style={[styles.body, mine && { color: '#fff' }]}>{item.body}</Text>
+                    <HighlightText
+                      text={item.body || ''}
+                      query={searchMode ? searchQuery : ''}
+                      style={[styles.body, mine && { color: '#fff' }]}
+                      hl={styles.hl}
+                    />
                   )}
 
                   {!deleted && (item.edited_at || mine) ? (
@@ -1111,6 +1248,13 @@ const styles = StyleSheet.create({
   reactFloatWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 },
   reactFloat: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: '#fff', borderRadius: 30, paddingVertical: 8, paddingHorizontal: 8, ...shadow.lg },
   reactFloatBtn: { paddingHorizontal: 4, paddingVertical: 2 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
+  searchX: { fontSize: 18, color: theme.textMuted, fontWeight: '700' },
+  searchInput: { flex: 1, fontSize: 16, color: theme.text, paddingVertical: 6 },
+  searchCount: { fontSize: 13, color: theme.textMuted, fontWeight: '600' },
+  searchArrow: { fontSize: 16, color: theme.primary, fontWeight: '700', paddingHorizontal: 2 },
+  flashBox: { position: 'absolute', left: 0, right: 0, top: -4, bottom: -4, borderRadius: 10, backgroundColor: 'rgba(99,89,242,0.22)' },
+  hl: { backgroundColor: '#FDE047', color: '#1E2233' },
   selBarWrap: { backgroundColor: theme.primaryDark },
   selBar: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 14, paddingVertical: 10 },
   selX: { color: '#fff', fontSize: 20, fontWeight: '700' },
