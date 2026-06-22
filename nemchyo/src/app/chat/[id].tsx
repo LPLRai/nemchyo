@@ -6,6 +6,7 @@ import { Redirect, Stack, useLocalSearchParams, useRouter, type ErrorBoundaryPro
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Linking,
@@ -28,6 +29,19 @@ import { callsSupported } from '@/lib/webrtc';
 import { PRIMARY } from '../_layout';
 
 const REACT_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+// Best-effort MIME type from a filename — pickers sometimes omit it, and a
+// missing/wrong type is a common reason an upload silently fails on Android.
+function guessMime(name: string, fallback: string): string {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const map: Record<string, string> = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp', heic: 'image/heic', mp4: 'video/mp4', mov: 'video/quicktime',
+    m4a: 'audio/m4a', mp3: 'audio/mpeg', aac: 'audio/aac', wav: 'audio/wav',
+    pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+  return map[ext] || fallback;
+}
 
 function previewOf(m: any): string {
   if (!m) return '';
@@ -97,6 +111,7 @@ export default function Conversation() {
   const [actionTarget, setActionTarget] = useState<any>(null);
   const [callPick, setCallPick] = useState<{ kind: 'audio' | 'video'; members: any[] } | null>(null);
   const [members, setMembers] = useState<any[]>([]);
+  const [attachOpen, setAttachOpen] = useState(false);
   const listRef = useRef<FlatList>(null);
   const lastReadWrite = useRef(0);
   const lastTypingWrite = useRef(0);
@@ -368,43 +383,84 @@ export default function Conversation() {
     return Object.entries(g);
   }
 
-  async function uploadAsset(asset: any, kind: 'image' | 'file') {
+  async function uploadAsset(asset: any, kind: 'image' | 'video' | 'file' | 'voice') {
     setUploading(true);
     try {
+      const defaultName =
+        kind === 'image' ? 'photo.jpg' : kind === 'video' ? 'video.mp4' : kind === 'voice' ? 'voice.m4a' : 'file';
+      const name = asset.fileName || asset.name || defaultName;
       const form = new FormData();
       form.append('chat', String(id));
       form.append('sender', user.id);
       form.append('type', kind);
+      form.append('file_name', name);
       const caption = text.trim();
       if (caption) {
         form.append('body', caption);
         setText('');
       }
-      const name = asset.fileName || asset.name || (kind === 'image' ? 'photo.jpg' : 'file');
-      form.append('file_name', name);
       if (Platform.OS === 'web') {
         const blob = asset.file ?? (await (await fetch(asset.uri)).blob());
         form.append('file', blob, name);
       } else {
-        form.append('file', { uri: asset.uri, name, type: asset.mimeType || 'application/octet-stream' } as any);
+        const fallback = kind === 'image' ? 'image/jpeg' : kind === 'voice' ? 'audio/m4a' : 'application/octet-stream';
+        const type = asset.mimeType || guessMime(name, fallback);
+        form.append('file', { uri: asset.uri, name, type } as any);
       }
       await pb.collection('messages').create(form);
-    } catch {
+    } catch (e: any) {
+      // Surface the failure instead of swallowing it — this was the silent-fail bug.
+      Alert.alert("Couldn't send", e?.message || 'The file could not be uploaded. Please try again.');
     } finally {
       setUploading(false);
     }
   }
-  async function pickImage() {
-    if (Platform.OS !== 'web') {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) return;
+
+  async function pickFromLibrary() {
+    setAttachOpen(false);
+    try {
+      if (Platform.OS !== 'web') {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert('Permission needed', 'Allow photo access to send photos or videos.');
+          return;
+        }
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.8 });
+      if (!res.canceled && res.assets?.[0]) {
+        const a = res.assets[0];
+        uploadAsset(a, a.type === 'video' ? 'video' : 'image');
+      }
+    } catch (e: any) {
+      Alert.alert("Couldn't open the gallery", e?.message || 'Please try again.');
     }
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (!res.canceled && res.assets?.[0]) uploadAsset(res.assets[0], 'image');
   }
-  async function pickFile() {
-    const res = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
-    if (!res.canceled && res.assets?.[0]) uploadAsset(res.assets[0], 'file');
+
+  async function takePhoto() {
+    setAttachOpen(false);
+    try {
+      if (Platform.OS !== 'web') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert('Permission needed', 'Allow camera access to take a photo.');
+          return;
+        }
+      }
+      const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+      if (!res.canceled && res.assets?.[0]) uploadAsset(res.assets[0], 'image');
+    } catch (e: any) {
+      Alert.alert("Couldn't open the camera", e?.message || 'Please try again.');
+    }
+  }
+
+  async function pickDocument() {
+    setAttachOpen(false);
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      if (!res.canceled && res.assets?.[0]) uploadAsset(res.assets[0], 'file');
+    } catch (e: any) {
+      Alert.alert("Couldn't open files", e?.message || 'Please try again.');
+    }
   }
 
   return (
@@ -494,10 +550,14 @@ export default function Conversation() {
                     </Pressable>
                   ) : isFile ? (
                     <Pressable style={styles.fileCard} onPress={() => Linking.openURL(fileUrl(item, item.file))}>
-                      <Text style={styles.fileIcon}>📄</Text>
+                      <Text style={styles.fileIcon}>{item.type === 'video' ? '🎬' : item.type === 'voice' ? '🎵' : '📄'}</Text>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>{item.file_name || 'Document'}</Text>
-                        <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>Tap to open</Text>
+                        <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>
+                          {item.file_name || (item.type === 'video' ? 'Video' : item.type === 'voice' ? 'Voice message' : 'Document')}
+                        </Text>
+                        <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>
+                          {item.type === 'video' ? 'Tap to play' : 'Tap to open'}
+                        </Text>
                       </View>
                     </Pressable>
                   ) : (
@@ -571,10 +631,9 @@ export default function Conversation() {
 
       <View style={styles.inputBar}>
         {!editing && (
-          <>
-            <Pressable style={styles.attachBtn} onPress={pickImage} disabled={uploading} hitSlop={6}><Text style={styles.attachIcon}>📷</Text></Pressable>
-            <Pressable style={styles.attachBtn} onPress={pickFile} disabled={uploading} hitSlop={6}><Text style={styles.attachIcon}>📎</Text></Pressable>
-          </>
+          <Pressable style={styles.attachBtn} onPress={() => setAttachOpen(true)} disabled={uploading} hitSlop={6}>
+            <Text style={styles.attachIcon}>＋</Text>
+          </Pressable>
         )}
         <TextInput
           style={styles.input}
@@ -588,6 +647,27 @@ export default function Conversation() {
           <Text style={styles.sendIcon}>{editing ? '✓' : '➤'}</Text>
         </Pressable>
       </View>
+
+      {/* Attachment options */}
+      <Modal visible={attachOpen} transparent animationType="fade" onRequestClose={() => setAttachOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setAttachOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Send</Text>
+            <Pressable style={styles.sheetRow} onPress={pickFromLibrary}>
+              <Text style={styles.sheetRowText}>🖼️  Photo or Video</Text>
+            </Pressable>
+            <Pressable style={styles.sheetRow} onPress={takePhoto}>
+              <Text style={styles.sheetRowText}>📷  Take Photo</Text>
+            </Pressable>
+            <Pressable style={styles.sheetRow} onPress={pickDocument}>
+              <Text style={styles.sheetRowText}>📄  Document</Text>
+            </Pressable>
+            <Pressable style={styles.sheetCancel} onPress={() => setAttachOpen(false)}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Mute sheet */}
       <Modal visible={muteVisible} transparent animationType="fade" onRequestClose={() => setMuteVisible(false)}>
