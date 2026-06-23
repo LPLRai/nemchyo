@@ -99,10 +99,14 @@ function previewOf(m: any): string {
 const PAGE = 30;
 const MSG_EXPAND = 'sender,reply_to,reply_to.sender';
 
+const isGif = (m: any) => /\.gif$/i.test(m?.file_name || m?.file || '');
+
 function buildRenderData(msgs: any[]): any[] {
   const out: any[] = [];
   let i = 0;
-  const isPhoto = (m: any) => m.file && m.type === 'image' && !m.deleted_for_everyone;
+  // GIFs are sent as images but should never group into a photo album — each
+  // stands on its own.
+  const isPhoto = (m: any) => m.file && m.type === 'image' && !m.deleted_for_everyone && !isGif(m);
   while (i < msgs.length) {
     const m = msgs[i];
     if (isPhoto(m)) {
@@ -1209,7 +1213,7 @@ export default function Conversation() {
                     <Text style={[styles.deleted, mine && { color: '#E0E7FF' }]}>🚫 This message was deleted</Text>
                   ) : isImage ? (
                     <Pressable onLongPress={(e) => onMsgLongPress(item, e)} delayLongPress={260} onPress={() => (selectionMode ? toggleSelect(item) : setViewer({ uris: [fileUrl(item, item.file)], index: 0 }))}>
-                      <Image source={{ uri: fileUrl(item, item.file, { thumb: '600x0' }) }} style={styles.image} contentFit="cover" />
+                      <Image source={{ uri: isGif(item) ? fileUrl(item, item.file) : fileUrl(item, item.file, { thumb: '600x0' }) }} style={styles.image} contentFit="cover" />
                       {item.body ? <Text style={[styles.caption, mine && { color: '#fff' }]}>{item.body}</Text> : null}
                     </Pressable>
                   ) : isVoice ? (
