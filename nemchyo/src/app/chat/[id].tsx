@@ -172,8 +172,13 @@ function TypingIndicator({ members, meId }: { members: any[]; meId?: string }) {
   );
 }
 
-export default function Conversation() {
-  const { id, jump: jumpParam, jumpAt } = useLocalSearchParams<{ id: string; jump?: string; jumpAt?: string }>();
+export default function Conversation({ chatId, embedded }: { chatId?: string; embedded?: boolean } = {}) {
+  // `id` comes from the route normally, or from a prop when embedded in the
+  // desktop two-pane layout (so the same conversation UI works in both).
+  const params = useLocalSearchParams<{ id: string; jump?: string; jumpAt?: string }>();
+  const id = chatId ?? params.id;
+  const jumpParam = embedded ? undefined : params.jump;
+  const jumpAt = embedded ? undefined : params.jumpAt;
   const { isValid, user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -1029,6 +1034,39 @@ export default function Conversation() {
     setFlashId(null);
   }
 
+  const headerTitleEl = (
+    <Pressable
+      onPress={() => router.push({ pathname: '/chat-info', params: { chat: id } })}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}
+      hitSlop={6}>
+      <Avatar user={isDirectChat ? headerPeer : undefined} name={headerName} size={32} />
+      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }} numberOfLines={1}>
+        {headerName}
+      </Text>
+      <Text style={{ color: '#fff', fontSize: 18, marginLeft: -2, opacity: 0.85 }}>›</Text>
+    </Pressable>
+  );
+  const headerRightEl = (
+    <View style={{ flexDirection: 'row', gap: 18, alignItems: 'center' }}>
+      {callsSupported ? (
+        <Pressable onPress={() => startCall('audio')} hitSlop={8}>
+          <Icon name="phone" size={21} color="#fff" />
+        </Pressable>
+      ) : null}
+      {callsSupported ? (
+        <Pressable onPress={() => startCall('video')} hitSlop={8}>
+          <Icon name="video" size={22} color="#fff" />
+        </Pressable>
+      ) : null}
+      <Pressable onPress={() => setSearchMode(true)} hitSlop={8}>
+        <Icon name="search" size={21} color="#fff" />
+      </Pressable>
+      <Pressable onPress={() => setMuteVisible(true)} hitSlop={10}>
+        <Icon name={muted ? 'bell-off' : 'bell'} size={21} color="#fff" />
+      </Pressable>
+    </View>
+  );
+
   return (
     <KeyboardAvoidingView
       // iOS: KeyboardAvoidingView (no adjustResize there). Android: we lift the
@@ -1038,42 +1076,15 @@ export default function Conversation() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       enabled={Platform.OS === 'ios'}
       keyboardVerticalOffset={insets.top + 44}>
-      <Stack.Screen
-        options={{
-          headerTitle: () => (
-            <Pressable
-              onPress={() => router.push({ pathname: '/chat-info', params: { chat: id } })}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}
-              hitSlop={6}>
-              <Avatar user={isDirectChat ? headerPeer : undefined} name={headerName} size={32} />
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }} numberOfLines={1}>
-                {headerName}
-              </Text>
-              <Text style={{ color: '#fff', fontSize: 18, marginLeft: -2, opacity: 0.85 }}>›</Text>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <View style={{ flexDirection: 'row', gap: 18, alignItems: 'center' }}>
-              {callsSupported ? (
-                <Pressable onPress={() => startCall('audio')} hitSlop={8}>
-                  <Icon name="phone" size={21} color="#fff" />
-                </Pressable>
-              ) : null}
-              {callsSupported ? (
-                <Pressable onPress={() => startCall('video')} hitSlop={8}>
-                  <Icon name="video" size={22} color="#fff" />
-                </Pressable>
-              ) : null}
-              <Pressable onPress={() => setSearchMode(true)} hitSlop={8}>
-                <Icon name="search" size={21} color="#fff" />
-              </Pressable>
-              <Pressable onPress={() => setMuteVisible(true)} hitSlop={10}>
-                <Icon name={muted ? 'bell-off' : 'bell'} size={21} color="#fff" />
-              </Pressable>
-            </View>
-          ),
-        }}
-      />
+      {embedded ? (
+        <View style={styles.embedHeader}>
+          {headerTitleEl}
+          <View style={{ flex: 1 }} />
+          {headerRightEl}
+        </View>
+      ) : (
+        <Stack.Screen options={{ headerTitle: () => headerTitleEl, headerRight: () => headerRightEl }} />
+      )}
 
       {searchMode ? (
         <View style={styles.searchBar}>
@@ -1524,6 +1535,7 @@ export default function Conversation() {
 }
 
 const makeStyles = (theme: Colors) => StyleSheet.create({
+  embedHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.primaryDark, paddingHorizontal: 16, height: 56 },
   mutedBanner: { backgroundColor: '#FEF3C7', paddingVertical: 6, paddingHorizontal: 14, alignItems: 'center' },
   mutedText: { color: '#92400E', fontSize: 12, fontWeight: '600' },
   rowSelected: { backgroundColor: 'rgba(99,89,242,0.12)', marginVertical: -3, paddingVertical: 3 },

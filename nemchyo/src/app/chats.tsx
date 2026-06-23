@@ -1,6 +1,6 @@
 import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Avatar } from '@/components/avatar';
 import { Icon } from '@/components/icon';
 import { useAuth } from '@/lib/auth';
@@ -9,12 +9,16 @@ import { pb } from '@/lib/pb';
 import { registerForPush } from '@/lib/push';
 import { registerWebPush } from '@/lib/webpush';
 import { shadow, useColors, useThemedStyles, type Colors } from '@/lib/theme';
+import Conversation from './chat/[id]';
 
 export default function Chats() {
   const { isValid, user } = useAuth();
   const router = useRouter();
   const theme = useColors();
   const styles = useThemedStyles(makeStyles);
+  const { width } = useWindowDimensions();
+  const isWide = Platform.OS === 'web' && width >= 900; // desktop two-pane
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [chats, setChats] = useState<any[]>([]);
   const [muteMap, setMuteMap] = useState<Record<string, string>>({});
   const [membersMap, setMembersMap] = useState<Record<string, any[]>>({});
@@ -76,6 +80,63 @@ export default function Chats() {
 
   if (!isValid) return <Redirect href="/" />;
 
+  // On wide web, tapping a chat opens it in the side pane; on mobile it
+  // navigates to the conversation route as before.
+  const openChat = (cid: string) => {
+    if (isWide) setSelectedId(cid);
+    else router.push({ pathname: '/chat/[id]', params: { id: cid } });
+  };
+
+  const sortedChats = [...chats].sort((a, b) => {
+    const ta = lastMsgMap[a.id]?.created || a.updated || '';
+    const tb = lastMsgMap[b.id]?.created || b.updated || '';
+    return tb.localeCompare(ta);
+  });
+
+  const listContent = loading ? (
+    <View style={styles.center}>
+      <ActivityIndicator color={theme.primary} />
+    </View>
+  ) : chats.length === 0 ? (
+    <View style={styles.center}>
+      <Text style={styles.emptyTitle}>No chats yet</Text>
+      <Text style={styles.emptyText}>Chats you are a member of will appear here.</Text>
+    </View>
+  ) : (
+    <FlatList
+      data={sortedChats}
+      keyExtractor={(c) => c.id}
+      contentContainerStyle={{ paddingVertical: 6 }}
+      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      renderItem={({ item }) => {
+        const isDirect = item.type === 'direct';
+        const peer = isDirect ? (membersMap[item.id] || []).find((m) => m.user !== user?.id)?.expand?.user : null;
+        const title = isDirect ? peer?.display_name || 'Direct message' : item.name || 'Untitled chat';
+        const lm = lastMsgMap[item.id];
+        const preview = lm ? lastPreview(lm, user?.id, isDirect) : labelForType(item.type);
+        const time = lm ? formatTime(lm.created) : '';
+        const active = isWide && item.id === selectedId;
+        return (
+          <Pressable
+            style={({ pressed }) => [styles.row, (pressed || active) && { backgroundColor: theme.primarySoft }]}
+            onPress={() => openChat(item.id)}>
+            <Avatar user={isDirect ? peer : undefined} name={title} size={54} />
+            <View style={{ flex: 1 }}>
+              <View style={styles.rowTop}>
+                <Text style={styles.name} numberOfLines={1}>{title}</Text>
+                {time ? <Text style={styles.time}>{time}</Text> : null}
+              </View>
+              <View style={styles.rowBottom}>
+                <Text style={styles.preview} numberOfLines={1}>{preview}</Text>
+                {isMuted(muteMap[item.id]) ? <Text style={styles.muteIcon}>🔕</Text> : null}
+              </View>
+            </View>
+          </Pressable>
+        );
+      }}
+    />
+  );
+
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen
@@ -101,60 +162,34 @@ export default function Chats() {
         }}
       />
 
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.primary} />
-        </View>
-      ) : chats.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.emptyTitle}>No chats yet</Text>
-          <Text style={styles.emptyText}>Chats you are a member of will appear here.</Text>
+      {isWide ? (
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <View style={styles.sidebar}>
+            {listContent}
+            <Pressable style={styles.fab} onPress={() => router.push('/new-chat')} hitSlop={8}>
+              <Text style={styles.fabIcon}>＋</Text>
+            </Pressable>
+          </View>
+          <View style={{ flex: 1 }}>
+            {selectedId ? (
+              <Conversation key={selectedId} chatId={selectedId} embedded />
+            ) : (
+              <View style={styles.emptyPane}>
+                <Text style={styles.emptyPaneTitle}>Nemchyo</Text>
+                <Text style={styles.emptyPaneText}>Select a conversation to start chatting.</Text>
+              </View>
+            )}
+          </View>
         </View>
       ) : (
-        <FlatList
-          data={[...chats].sort((a, b) => {
-            const ta = lastMsgMap[a.id]?.created || a.updated || '';
-            const tb = lastMsgMap[b.id]?.created || b.updated || '';
-            return tb.localeCompare(ta);
-          })}
-          keyExtractor={(c) => c.id}
-          contentContainerStyle={{ paddingVertical: 6 }}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          renderItem={({ item }) => {
-            const isDirect = item.type === 'direct';
-            const peer = isDirect
-              ? (membersMap[item.id] || []).find((m) => m.user !== user?.id)?.expand?.user
-              : null;
-            const title = isDirect ? peer?.display_name || 'Direct message' : item.name || 'Untitled chat';
-            const lm = lastMsgMap[item.id];
-            const preview = lm ? lastPreview(lm, user?.id, isDirect) : labelForType(item.type);
-            const time = lm ? formatTime(lm.created) : '';
-            return (
-              <Pressable
-                style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.primarySoft }]}
-                onPress={() => router.push({ pathname: '/chat/[id]', params: { id: item.id } })}>
-                <Avatar user={isDirect ? peer : undefined} name={title} size={54} />
-                <View style={{ flex: 1 }}>
-                  <View style={styles.rowTop}>
-                    <Text style={styles.name} numberOfLines={1}>{title}</Text>
-                    {time ? <Text style={styles.time}>{time}</Text> : null}
-                  </View>
-                  <View style={styles.rowBottom}>
-                    <Text style={styles.preview} numberOfLines={1}>{preview}</Text>
-                    {isMuted(muteMap[item.id]) ? <Text style={styles.muteIcon}>🔕</Text> : null}
-                  </View>
-                </View>
-              </Pressable>
-            );
-          }}
-        />
+        <>
+          {listContent}
+          <Pressable style={styles.fab} onPress={() => router.push('/new-chat')} hitSlop={8}>
+            <Text style={styles.fabIcon}>＋</Text>
+          </Pressable>
+          <Text style={styles.footer}>Signed in as {user?.display_name || user?.email}</Text>
+        </>
       )}
-
-      <Pressable style={styles.fab} onPress={() => router.push('/new-chat')} hitSlop={8}>
-        <Text style={styles.fabIcon}>＋</Text>
-      </Pressable>
-
-      <Text style={styles.footer}>Signed in as {user?.display_name || user?.email}</Text>
     </View>
   );
 }
@@ -199,6 +234,10 @@ function formatTime(iso: string): string {
 
 const makeStyles = (theme: Colors) => StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 24 },
+  sidebar: { width: 360, borderRightWidth: 1, borderRightColor: theme.border, backgroundColor: theme.bg },
+  emptyPane: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.chatBg },
+  emptyPaneTitle: { fontSize: 28, fontWeight: '800', color: theme.textFaint, letterSpacing: 0.5 },
+  emptyPaneText: { fontSize: 15, color: theme.textFaint },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: theme.text },
   emptyText: { fontSize: 14, color: theme.textFaint, textAlign: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingVertical: 14 },
