@@ -12,6 +12,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -24,6 +25,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
+import { EmojiPicker } from '@/components/emoji-picker';
+import { Icon } from '@/components/icon';
 import { ImageAlbum, ImageViewer } from '@/components/image-album';
 import { PollMessage } from '@/components/poll-message';
 import { SwipeToReply } from '@/components/swipe-to-reply';
@@ -184,6 +187,7 @@ export default function Conversation() {
   const [members, setMembers] = useState<any[]>([]);
   const [pins, setPins] = useState<any[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [searchMode, setSearchMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [matches, setMatches] = useState<string[]>([]);
@@ -447,6 +451,18 @@ export default function Conversation() {
     pb.collection('chat_members')
       .update(membership.id, { typing_until: new Date(now + 6000).toISOString() })
       .catch(() => {});
+  }
+
+  // Toggle the in-app emoji keyboard: dismiss the system keyboard to show it,
+  // or hand focus back to the input to bring the system keyboard back.
+  function toggleEmoji() {
+    if (emojiOpen) {
+      setEmojiOpen(false);
+      inputRef.current?.focus();
+    } else {
+      Keyboard.dismiss();
+      setEmojiOpen(true);
+    }
   }
 
   function stopTyping() {
@@ -1145,21 +1161,21 @@ export default function Conversation() {
       ) : recording ? (
         <View style={[styles.inputBar, { paddingBottom: 9 + insets.bottom }]}>
           <Pressable style={styles.attachBtn} onPress={cancelRecording} hitSlop={6}>
-            <Text style={[styles.attachIcon, { color: '#DC2626' }]}>🗑️</Text>
+            <Icon name="trash" size={24} color="#DC2626" />
           </Pressable>
           <View style={styles.recPill}>
             <View style={styles.recDot} />
             <Text style={styles.recText}>Recording…  {fmtMs(recState.durationMillis)}</Text>
           </View>
           <Pressable style={styles.sendBtn} onPress={stopAndSendVoice}>
-            <Text style={styles.sendIcon}>➤</Text>
+            <Icon name="send" size={22} color="#fff" />
           </Pressable>
         </View>
       ) : (
-        <View style={[styles.inputBar, { paddingBottom: 9 + insets.bottom }]}>
+        <View style={[styles.inputBar, { paddingBottom: emojiOpen ? 9 : 9 + insets.bottom }]}>
           {!editing ? (
-            <Pressable style={styles.attachBtn} onPress={() => inputRef.current?.focus()} hitSlop={6}>
-              <Text style={styles.attachIcon}>😊</Text>
+            <Pressable style={styles.attachBtn} onPress={toggleEmoji} hitSlop={6}>
+              <Icon name={emojiOpen ? 'keyboard' : 'emoji'} size={26} color="#54656F" />
             </Pressable>
           ) : null}
           <TextInput
@@ -1167,31 +1183,39 @@ export default function Conversation() {
             style={styles.input}
             value={text}
             onChangeText={handleType}
+            onFocus={() => setEmojiOpen(false)}
             placeholder={editing ? 'Edit message' : 'Message'}
             placeholderTextColor="#9CA3AF"
             multiline
           />
           {!editing ? (
             <>
-              <Pressable style={styles.attachBtn} onPress={() => setAttachOpen(true)} disabled={uploading} hitSlop={6}>
-                <Text style={styles.attachIcon}>📎</Text>
+              <Pressable style={styles.attachBtn} onPress={() => { setEmojiOpen(false); setAttachOpen(true); }} disabled={uploading} hitSlop={6}>
+                <Icon name="attach" size={24} color="#54656F" />
               </Pressable>
-              <Pressable style={styles.attachBtn} onPress={takePhoto} disabled={uploading} hitSlop={6}>
-                <Text style={styles.attachIcon}>📷</Text>
+              <Pressable style={styles.attachBtn} onPress={() => { setEmojiOpen(false); takePhoto(); }} disabled={uploading} hitSlop={6}>
+                <Icon name="camera" size={24} color="#54656F" />
               </Pressable>
             </>
           ) : null}
           {text.trim() || editing ? (
             <Pressable style={({ pressed }) => [styles.sendBtn, pressed && { opacity: 0.85 }]} onPress={send}>
-              <Text style={styles.sendIcon}>{editing ? '✓' : '➤'}</Text>
+              <Icon name={editing ? 'check' : 'send'} size={22} color="#fff" />
             </Pressable>
           ) : (
-            <Pressable style={styles.micBtn} onPress={startRecording}>
-              <Text style={styles.micIcon}>🎤</Text>
+            <Pressable style={styles.micBtn} onPress={() => { setEmojiOpen(false); startRecording(); }}>
+              <Icon name="mic" size={22} color="#fff" />
             </Pressable>
           )}
         </View>
       )}
+
+      {emojiOpen && canPost && !recording ? (
+        <EmojiPicker
+          onPick={(e) => setText((t) => t + e)}
+          onBackspace={() => setText((t) => Array.from(t).slice(0, -1).join(''))}
+        />
+      ) : null}
 
       {/* Attachment options */}
       <Modal visible={attachOpen} transparent animationType="fade" onRequestClose={() => setAttachOpen(false)}>
