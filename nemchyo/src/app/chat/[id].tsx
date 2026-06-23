@@ -224,6 +224,21 @@ export default function Conversation() {
     atPresentRef.current = atPresent;
   }, [atPresent]);
 
+  // Android: drive the composer lift ourselves from keyboard events. Keyboard
+  // AvoidingView mis-measures its frame under adjustResize and leaves a gap
+  // below the composer after the keyboard closes; doing it manually guarantees
+  // the lift returns to exactly 0 on hide.
+  const [kbPad, setKbPad] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const s = Keyboard.addListener('keyboardDidShow', (e) => setKbPad(e.endCoordinates?.height ?? 0));
+    const h = Keyboard.addListener('keyboardDidHide', () => setKbPad(0));
+    return () => {
+      s.remove();
+      h.remove();
+    };
+  }, []);
+
   useEffect(() => {
     if (!id) return;
     const filter = pb.filter('chat = {:id}', { id });
@@ -372,6 +387,9 @@ export default function Conversation() {
   if (!isValid) return <Redirect href="/" />;
 
   const muted = isMuted(membership?.muted_until);
+  // No bottom safe-area inset while the keyboard or emoji panel is up — the
+  // composer sits directly on top of them then.
+  const composerPad = emojiOpen || kbPad > 0 ? 9 : 9 + insets.bottom;
   const canPost = !adminOnly || membership?.role === 'admin' || membership?.role === 'owner';
   const isDirectChat = chatType === 'direct';
   const headerPeer = isDirectChat ? members.find((m) => m.user !== user?.id)?.expand?.user : null;
@@ -1003,12 +1021,13 @@ export default function Conversation() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      // 'padding' lifts the composer by the keyboard height the same as 'height'
-      // did, but cleanly returns to 0 when the keyboard closes — 'height' was
-      // leaving a residual gap below the composer on Android.
-      behavior="padding"
-      keyboardVerticalOffset={insets.top + (Platform.OS === 'ios' ? 44 : 56)}>
+      // iOS: KeyboardAvoidingView (no adjustResize there). Android: we lift the
+      // composer ourselves via paddingBottom (kbPad) and keep KAV disabled, so
+      // there's no frame-measurement gap left behind when the keyboard closes.
+      style={{ flex: 1, paddingBottom: Platform.OS === 'android' ? kbPad : 0 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      enabled={Platform.OS === 'ios'}
+      keyboardVerticalOffset={insets.top + 44}>
       <Stack.Screen
         options={{
           headerTitle: () => (
@@ -1323,11 +1342,11 @@ export default function Conversation() {
       ) : null}
 
       {!canPost ? (
-        <View style={[styles.announceNotice, { paddingBottom: 9 + insets.bottom }]}>
+        <View style={[styles.announceNotice, { paddingBottom: composerPad }]}>
           <Text style={styles.announceNoticeText}>📣 Only admins can post in this channel</Text>
         </View>
       ) : recording ? (
-        <View style={[styles.inputBar, { paddingBottom: 9 + insets.bottom }]}>
+        <View style={[styles.inputBar, { paddingBottom: composerPad }]}>
           <Pressable style={styles.attachBtn} onPress={cancelRecording} hitSlop={6}>
             <Icon name="trash" size={24} color="#DC2626" />
           </Pressable>
@@ -1340,7 +1359,7 @@ export default function Conversation() {
           </Pressable>
         </View>
       ) : (
-        <View style={[styles.inputBar, { paddingBottom: emojiOpen ? 9 : 9 + insets.bottom }]}>
+        <View style={[styles.inputBar, { paddingBottom: composerPad }]}>
           {!editing ? (
             <Pressable style={styles.attachBtn} onPress={toggleEmoji} hitSlop={6}>
               <Icon name={emojiOpen ? 'keyboard' : 'emoji'} size={26} color="#54656F" />
