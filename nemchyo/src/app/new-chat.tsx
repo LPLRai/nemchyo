@@ -20,6 +20,7 @@ export default function NewChat() {
   const [people, setPeople] = useState<any[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [groupName, setGroupName] = useState('');
+  const [announce, setAnnounce] = useState(false);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
@@ -73,9 +74,14 @@ export default function NewChat() {
           return;
         }
       }
-      const type = isGroup ? 'group' : 'direct';
-      const name = isGroup ? groupName.trim() || 'New group' : ''; // direct names are shown per-viewer
-      const chat = await pb.collection('chats').create({ name, type, created_by: user.id });
+      const type = announce && isGroup ? 'announcement' : isGroup ? 'group' : 'direct';
+      const name = isGroup ? groupName.trim() || (announce ? 'Announcements' : 'New group') : '';
+      const chat = await pb.collection('chats').create({
+        name,
+        type,
+        admin_only_posting: announce && isGroup,
+        created_by: user.id,
+      });
       await pb.collection('chat_members').create({ chat: chat.id, user: user.id, role: 'owner' });
       for (const pid of selectedIds) {
         await pb.collection('chat_members').create({ chat: chat.id, user: pid, role: 'member' });
@@ -98,10 +104,17 @@ export default function NewChat() {
             style={styles.groupNameInput}
             value={groupName}
             onChangeText={setGroupName}
-            placeholder="Group name"
+            placeholder={announce ? 'Channel name' : 'Group name'}
             placeholderTextColor="#9CA3AF"
             maxLength={60}
           />
+          <Pressable style={styles.announceRow} onPress={() => setAnnounce((a) => !a)}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.announceTitle}>📣 Announcement channel</Text>
+              <Text style={styles.announceSub}>Only admins can post; everyone else reads</Text>
+            </View>
+            <Text style={[styles.announceBox, announce && { color: PRIMARY }]}>{announce ? '☑' : '☐'}</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -142,7 +155,7 @@ export default function NewChat() {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.createText}>
-              {isGroup ? `Create group · ${selectedIds.length} people` : 'Start chat'}
+              {isGroup ? `Create ${announce ? 'channel' : 'group'} · ${selectedIds.length} people` : 'Start chat'}
             </Text>
           )}
         </Pressable>
@@ -164,6 +177,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
   },
+  announceRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 12, paddingHorizontal: 2 },
+  announceTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  announceSub: { fontSize: 12.5, color: '#6B7280', marginTop: 1 },
+  announceBox: { fontSize: 24, color: '#9CA3AF' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 11 },
   name: { flex: 1, fontSize: 16, fontWeight: '600', color: '#111827' },
   check: {

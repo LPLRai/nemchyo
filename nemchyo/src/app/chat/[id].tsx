@@ -172,6 +172,7 @@ export default function Conversation() {
   const [membership, setMembership] = useState<any>(null);
   const [chatName, setChatName] = useState('Chat');
   const [chatType, setChatType] = useState('');
+  const [adminOnly, setAdminOnly] = useState(false);
   const [muteVisible, setMuteVisible] = useState(false);
   const [replyTo, setReplyTo] = useState<any>(null);
   const [editing, setEditing] = useState<any>(null);
@@ -214,6 +215,7 @@ export default function Conversation() {
         if (active) {
           setChatName(chat.name || '');
           setChatType(chat.type || '');
+          setAdminOnly(!!chat.admin_only_posting);
         }
       } catch {}
       if (user?.id) {
@@ -334,6 +336,7 @@ export default function Conversation() {
   if (!isValid) return <Redirect href="/" />;
 
   const muted = isMuted(membership?.muted_until);
+  const canPost = !adminOnly || membership?.role === 'admin' || membership?.role === 'owner';
   const isDirectChat = chatType === 'direct';
   const headerPeer = isDirectChat ? members.find((m) => m.user !== user?.id)?.expand?.user : null;
   const headerName = isDirectChat ? headerPeer?.display_name || 'Chat' : chatName || 'Chat';
@@ -1135,7 +1138,11 @@ export default function Conversation() {
         </View>
       ) : null}
 
-      {recording ? (
+      {!canPost ? (
+        <View style={[styles.announceNotice, { paddingBottom: 9 + insets.bottom }]}>
+          <Text style={styles.announceNoticeText}>📣 Only admins can post in this channel</Text>
+        </View>
+      ) : recording ? (
         <View style={[styles.inputBar, { paddingBottom: 9 + insets.bottom }]}>
           <Pressable style={styles.attachBtn} onPress={cancelRecording} hitSlop={6}>
             <Text style={[styles.attachIcon, { color: '#DC2626' }]}>🗑️</Text>
@@ -1355,6 +1362,8 @@ const styles = StyleSheet.create({
   sendIcon: { color: '#fff', fontWeight: '700', fontSize: 18, marginLeft: 2 },
   micBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#25D366', alignItems: 'center', justifyContent: 'center', ...shadow.sm },
   micIcon: { fontSize: 22 },
+  announceNotice: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 14, paddingHorizontal: 16, alignItems: 'center' },
+  announceNoticeText: { color: theme.textMuted, fontSize: 14, fontWeight: '600', paddingBottom: 6 },
   recPill: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEE2E2', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12 },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#DC2626' },
   recText: { color: '#991B1B', fontSize: 14, fontWeight: '600' },
