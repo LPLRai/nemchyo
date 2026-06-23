@@ -39,8 +39,9 @@ function Empty({ text }: { text: string }) {
   );
 }
 
-export default function ChatInfo() {
-  const { chat } = useLocalSearchParams<{ chat: string }>();
+export default function ChatInfo({ chat: chatProp, embedded, onClose }: { chat?: string; embedded?: boolean; onClose?: () => void } = {}) {
+  const params = useLocalSearchParams<{ chat: string }>();
+  const chat = chatProp ?? params.chat;
   const { isValid, user } = useAuth();
   const router = useRouter();
   const theme = useColors();
@@ -130,10 +131,14 @@ export default function ChatInfo() {
         onPress: async () => {
           try {
             await pb.send('/api/delete-chat', { method: 'POST', body: { chat } });
-            try {
-              router.dismiss(2);
-            } catch {
-              router.replace('/chats');
+            if (embedded) {
+              onClose?.();
+            } else {
+              try {
+                router.dismiss(2);
+              } catch {
+                router.replace('/chats');
+              }
             }
           } catch (e: any) {
             Alert.alert("Couldn't delete", e?.message || 'Please try again.');
@@ -157,12 +162,22 @@ export default function ChatInfo() {
   function openPin(item: any) {
     const msg = item.expand?.message;
     if (!msg) return;
+    if (embedded) onClose?.(); // drawer: close it (the conversation is already beside us)
     router.navigate({ pathname: '/chat/[id]', params: { id: String(chat), jump: msg.id, jumpAt: String(Date.now()) } });
   }
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: 'Details' }} />
+      {embedded ? (
+        <View style={styles.drawerHead}>
+          <Text style={styles.drawerTitle}>Details</Text>
+          <Pressable onPress={onClose} hitSlop={10}>
+            <Text style={styles.drawerClose}>✕</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Stack.Screen options={{ title: 'Details' }} />
+      )}
 
       <View style={styles.head}>
         <Avatar user={isDirect ? peer : undefined} name={title} size={76} />
@@ -327,6 +342,9 @@ export default function ChatInfo() {
 
 const makeStyles = (theme: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.bg, alignItems: Platform.OS === 'web' ? 'center' : 'stretch' },
+  drawerHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, height: 56, borderBottomWidth: 1, borderBottomColor: theme.border, width: '100%' },
+  drawerTitle: { fontSize: 17, fontWeight: '800', color: theme.text },
+  drawerClose: { fontSize: 20, color: theme.textMuted, fontWeight: '700' },
   head: { alignItems: 'center', paddingVertical: 18, gap: 6, width: '100%', maxWidth: 640 },
   name: { fontSize: 22, fontWeight: '800', color: theme.text, marginTop: 6 },
   sub: { fontSize: 14, color: theme.textMuted },

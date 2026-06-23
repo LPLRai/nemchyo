@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
+import { useDetailsDrawer } from '@/components/details-drawer';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { Icon } from '@/components/icon';
 import { ImageAlbum, ImageViewer } from '@/components/image-album';
@@ -184,6 +185,7 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
   const insets = useSafeAreaInsets();
   const theme = useColors();
   const styles = useThemedStyles(makeStyles);
+  const { open: openDetails } = useDetailsDrawer();
   const [messages, setMessages] = useState<any[]>([]);
   const [reactions, setReactions] = useState<Record<string, any[]>>({});
   const [text, setText] = useState('');
@@ -1035,9 +1037,13 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
     setFlashId(null);
   }
 
+  const openChatInfo = () => {
+    if (Platform.OS === 'web') openDetails(id);
+    else router.push({ pathname: '/chat-info', params: { chat: id } });
+  };
   const headerTitleEl = (
     <Pressable
-      onPress={() => router.push({ pathname: '/chat-info', params: { chat: id } })}
+      onPress={openChatInfo}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}
       hitSlop={6}>
       <Avatar user={isDirectChat ? headerPeer : undefined} name={headerName} size={32} />

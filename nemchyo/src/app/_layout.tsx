@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
 import { useEffect } from 'react';
+import { DetailsDrawer, DetailsDrawerProvider } from '@/components/details-drawer';
 import { IncomingCallWatcher } from '@/components/incoming-call-watcher';
 import { ThemeProvider, theme, useColors, useTheme } from '@/lib/theme';
 
@@ -54,6 +55,7 @@ function Shell() {
         <Stack.Screen name="call/[id]" options={{ headerShown: false, animation: 'fade' }} />
       </Stack>
       <IncomingCallWatcher />
+      <DetailsDrawer />
     </>
   );
 }
@@ -61,7 +63,9 @@ function Shell() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <Shell />
+      <DetailsDrawerProvider>
+        <Shell />
+      </DetailsDrawerProvider>
     </ThemeProvider>
   );
 }
