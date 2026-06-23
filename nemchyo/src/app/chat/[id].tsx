@@ -182,7 +182,6 @@ export default function Conversation() {
   const [callPick, setCallPick] = useState<{ kind: 'audio' | 'video'; members: any[] } | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [pins, setPins] = useState<any[]>([]);
-  const [pinIdx, setPinIdx] = useState(0);
   const [attachOpen, setAttachOpen] = useState(false);
   const [searchMode, setSearchMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -340,7 +339,6 @@ export default function Conversation() {
   const headerName = isDirectChat ? headerPeer?.display_name || 'Chat' : chatName || 'Chat';
   const renderData = useMemo(() => buildRenderData(messages), [messages]);
   const selectionMode = selectedIds.length > 0;
-  const curPin = pins.length > 0 ? pins[Math.min(pinIdx, pins.length - 1)] : null;
   const selMsgs = messages.filter((m) => selectedIds.includes(m.id));
   const oneSel = selMsgs.length === 1 ? selMsgs[0] : null;
   const allOwnSel = selMsgs.length > 0 && selMsgs.every((m) => m.sender === user?.id);
@@ -851,6 +849,7 @@ export default function Conversation() {
               <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }} numberOfLines={1}>
                 {headerName}
               </Text>
+              <Text style={{ color: '#fff', fontSize: 18, marginLeft: -2, opacity: 0.85 }}>›</Text>
             </Pressable>
           ),
           headerRight: () => (
@@ -938,27 +937,6 @@ export default function Conversation() {
             ) : null}
           </View>
         </View>
-      ) : null}
-
-      {curPin && !searchMode && !selectionMode ? (
-        <Pressable
-          style={styles.pinBar}
-          onPress={() => {
-            const m = curPin.expand?.message;
-            if (m) flashMatch(m.id);
-            if (pins.length > 1) setPinIdx((i) => (i + 1) % pins.length);
-          }}>
-          <Text style={styles.pinIconTxt}>📌</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.pinLabel}>
-              Pinned{pins.length > 1 ? ` · ${Math.min(pinIdx, pins.length - 1) + 1}/${pins.length}` : ''}
-            </Text>
-            <Text style={styles.pinPreview} numberOfLines={1}>{previewOf(curPin.expand?.message)}</Text>
-          </View>
-          <Pressable onPress={() => unpinMessage(curPin.expand?.message?.id)} hitSlop={10}>
-            <Text style={styles.pinX}>✕</Text>
-          </Pressable>
-        </Pressable>
       ) : null}
 
       {muted ? (
@@ -1326,11 +1304,6 @@ const styles = StyleSheet.create({
   searchArrow: { fontSize: 16, color: theme.primary, fontWeight: '700', paddingHorizontal: 2 },
   flashBox: { position: 'absolute', left: 0, right: 0, top: -4, bottom: -4, borderRadius: 10, backgroundColor: 'rgba(99,89,242,0.22)' },
   hl: { backgroundColor: '#FDE047', color: '#1E2233' },
-  pinBar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: theme.border },
-  pinIconTxt: { fontSize: 18 },
-  pinLabel: { fontSize: 12, color: theme.primary, fontWeight: '700' },
-  pinPreview: { fontSize: 13.5, color: theme.textMuted, marginTop: 1 },
-  pinX: { fontSize: 16, color: theme.textFaint, fontWeight: '700' },
   selBarWrap: { backgroundColor: theme.primaryDark },
   selBar: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 14, paddingVertical: 10 },
   selX: { color: '#fff', fontSize: 20, fontWeight: '700' },
