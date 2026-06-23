@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/avatar';
 import { ImageViewer } from '@/components/image-album';
+import { VideoPlayerModal } from '@/components/video-player';
 import { useAuth } from '@/lib/auth';
 import { fileUrl } from '@/lib/files';
 import { pb } from '@/lib/pb';
@@ -46,6 +47,7 @@ export default function ChatInfo() {
   const [files, setFiles] = useState<any[]>([]);
   const [tab, setTab] = useState<Tab>('Members');
   const [viewer, setViewer] = useState<{ uris: string[]; index: number } | null>(null);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (!chat) return;
@@ -98,7 +100,7 @@ export default function ChatInfo() {
 
   function openMedia(item: any) {
     if (item.type === 'video') {
-      Linking.openURL(fileUrl(item, item.file));
+      setVideoUri(fileUrl(item, item.file));
       return;
     }
     const imgs = media.filter((m) => m.type === 'image');
@@ -217,6 +219,7 @@ export default function ChatInfo() {
       </View>
 
       <ImageViewer uris={viewer?.uris ?? null} index={viewer?.index ?? 0} onClose={() => setViewer(null)} />
+      {videoUri ? <VideoPlayerModal uri={videoUri} onClose={() => setVideoUri(null)} /> : null}
     </View>
   );
 }
