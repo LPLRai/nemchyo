@@ -58,11 +58,12 @@ export const darkColors: Colors = {
 // of brand colors that are identical across schemes (e.g. `theme.primary`).
 export const theme = lightColors;
 
-// Soft, layered shadows tinted toward the brand so cards feel warm, not gray.
+// Soft, diffuse shadows tinted toward the brand so cards feel like they float
+// gently rather than sit on a hard edge.
 export const shadow = {
-  sm: { shadowColor: '#2A1F6E', shadowOpacity: 0.07, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-  md: { shadowColor: '#2A1F6E', shadowOpacity: 0.12, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 4 },
-  lg: { shadowColor: '#2A1F6E', shadowOpacity: 0.2, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 9 },
+  sm: { shadowColor: '#2A1F6E', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  md: { shadowColor: '#2A1F6E', shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 5 },
+  lg: { shadowColor: '#2A1F6E', shadowOpacity: 0.16, shadowRadius: 30, shadowOffset: { width: 0, height: 14 }, elevation: 10 },
 } as const;
 
 type Scheme = 'light' | 'dark';
