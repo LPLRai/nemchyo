@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Avatar } from '@/components/avatar';
 import { ImageViewer } from '@/components/image-album';
@@ -179,7 +179,7 @@ export default function ChatInfo() {
         ))}
       </View>
 
-      <View style={{ flex: 1 }}>
+      <View style={styles.tabBody}>
         {tab === 'Members' ? (
           <FlatList
             data={members}
@@ -326,11 +326,12 @@ export default function ChatInfo() {
 }
 
 const makeStyles = (theme: Colors) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.bg },
-  head: { alignItems: 'center', paddingVertical: 18, gap: 6 },
+  screen: { flex: 1, backgroundColor: theme.bg, alignItems: Platform.OS === 'web' ? 'center' : 'stretch' },
+  head: { alignItems: 'center', paddingVertical: 18, gap: 6, width: '100%', maxWidth: 640 },
   name: { fontSize: 22, fontWeight: '800', color: theme.text, marginTop: 6 },
   sub: { fontSize: 14, color: theme.textMuted },
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.border, paddingHorizontal: 6 },
+  tabBody: { flex: 1, width: '100%', maxWidth: 640 },
+  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.border, paddingHorizontal: 6, width: '100%', maxWidth: 640 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 11 },
   tabText: { fontSize: 14, color: theme.textMuted, fontWeight: '600' },
   tabTextActive: { color: theme.primary, fontWeight: '700' },

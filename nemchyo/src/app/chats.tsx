@@ -147,7 +147,7 @@ export default function Chats() {
             </Pressable>
           ),
           headerRight: () => (
-            <View style={{ flexDirection: 'row', gap: 18, alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', gap: 18, alignItems: 'center', paddingRight: Platform.OS === 'web' ? 16 : 0 }}>
               <Pressable onPress={() => router.push('/calendar')} hitSlop={10}>
                 <Icon name="calendar" size={22} color="#fff" />
               </Pressable>

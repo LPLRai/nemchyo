@@ -175,7 +175,7 @@ export default function Profile() {
 }
 
 const makeStyles = (theme: Colors) => StyleSheet.create({
-  container: { padding: 24, alignItems: 'center', gap: 8 },
+  container: { padding: 24, alignItems: 'center', gap: 8, width: '100%', maxWidth: 560, alignSelf: 'center' },
   avatarWrap: { marginTop: 8 },
   editBadge: {
     position: 'absolute',
