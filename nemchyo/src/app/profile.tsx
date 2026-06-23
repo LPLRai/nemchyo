@@ -17,6 +17,7 @@ import { Avatar } from '@/components/avatar';
 import { PB_URL } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
+import { registerWebPush, webPushPermission } from '@/lib/webpush';
 import { PRIMARY } from './_layout';
 
 export default function Profile() {
@@ -26,8 +27,17 @@ export default function Profile() {
   const [about, setAbout] = useState<string>(user?.about || '');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [notifPerm, setNotifPerm] = useState(webPushPermission());
 
   if (!isValid) return <Redirect href="/" />;
+
+  async function enableNotifications() {
+    const ok = await registerWebPush(true);
+    setNotifPerm(webPushPermission());
+    if (!ok && webPushPermission() === 'denied') {
+      Alert.alert('Notifications blocked', 'Allow notifications for this site in your browser settings, then try again.');
+    }
+  }
 
   async function pickAvatar() {
     if (Platform.OS !== 'web') {
@@ -135,6 +145,14 @@ export default function Profile() {
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save</Text>}
       </Pressable>
 
+      {notifPerm === 'default' ? (
+        <Pressable style={styles.linkBtn} onPress={enableNotifications}>
+          <Text style={styles.linkBtnText}>🔔  Enable notifications</Text>
+        </Pressable>
+      ) : notifPerm === 'granted' ? (
+        <Text style={styles.notifOn}>🔔 Notifications are on for this device</Text>
+      ) : null}
+
       <Pressable style={styles.linkBtn} onPress={() => router.push('/link-device')}>
         <Text style={styles.linkBtnText}>＋  Link another device</Text>
       </Pressable>
@@ -188,5 +206,6 @@ const styles = StyleSheet.create({
   linkBtn: { alignSelf: 'stretch', backgroundColor: '#EEF0FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
   linkBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 15.5 },
   linkHint: { color: '#9CA3AF', fontSize: 12.5, textAlign: 'center', marginTop: 6 },
+  notifOn: { color: '#16A34A', fontSize: 13.5, fontWeight: '600', textAlign: 'center', marginTop: 12 },
   email: { color: '#9CA3AF', fontSize: 12, marginTop: 16 },
 });

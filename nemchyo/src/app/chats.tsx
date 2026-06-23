@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { isMuted } from '@/lib/mute';
 import { pb } from '@/lib/pb';
 import { registerForPush } from '@/lib/push';
+import { registerWebPush } from '@/lib/webpush';
 import { shadow, theme } from '@/lib/theme';
 
 export default function Chats() {
@@ -21,6 +22,7 @@ export default function Chats() {
   // Register for push once (no-op on web / in dev).
   useEffect(() => {
     registerForPush();
+    registerWebPush(false); // web: re-subscribe silently if already allowed
   }, []);
 
   useFocusEffect(

@@ -1,0 +1,14 @@
+{
+  "name": "nemchyo-web-push",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tiny localhost service that sends Web Push notifications for Nemchyo (the encryption can't run inside PocketBase's JS hooks).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "gen-keys": "web-push generate-vapid-keys"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

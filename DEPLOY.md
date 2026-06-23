@@ -183,3 +183,48 @@ media is never stored on Cloudflare's edge:
 True per-user file gating (a token-checked serving layer) is a larger follow-up
 tracked separately — the URLs being unguessable + not edge-cached is the
 pragmatic posture for now.
+
+---
+
+### Web Push (iPhone / browser notifications)
+The Android app gets push via Expo/FCM. Browsers — including the iPhone PWA —
+use **Web Push**, sent by a small Node sidecar in `web-push-service/` (the
+encryption can't run inside PocketBase's JS hooks).
+
+1. Node (once): `sudo apt install -y nodejs npm`
+2. VAPID keys (once):
+   ```bash
+   cd ~/nemchyo/web-push-service && npm install
+   npm run gen-keys      # prints a Public Key and a Private Key — copy both
+   ```
+3. Give PocketBase the **public** key (clients fetch it to subscribe):
+   ```bash
+   sudo systemctl edit pocketbase
+   #   under [Service] add:   Environment=NEMCHYO_VAPID_PUBLIC=<public key>
+   sudo systemctl daemon-reload && sudo systemctl restart pocketbase
+   ```
+4. Run the sidecar as a service (holds BOTH keys; private stays only here):
+   ```bash
+   sudo tee /etc/systemd/system/nemchyo-webpush.service >/dev/null <<'UNIT'
+   [Unit]
+   Description=Nemchyo web-push sidecar
+   After=network.target
+   [Service]
+   WorkingDirectory=/home/YOU/nemchyo/web-push-service
+   ExecStart=/usr/bin/node server.js
+   Environment=NEMCHYO_VAPID_PUBLIC=<public key>
+   Environment=NEMCHYO_VAPID_PRIVATE=<private key>
+   Environment=NEMCHYO_VAPID_SUBJECT=mailto:you@example.com
+   Restart=always
+   User=YOU
+   [Install]
+   WantedBy=multi-user.target
+   UNIT
+   sudo systemctl daemon-reload && sudo systemctl enable --now nemchyo-webpush
+   curl -s localhost:8092/health     # -> {"ok":true}
+   ```
+   (Replace `YOU` and the keys. Keep PB's `NEMCHYO_VAPID_PUBLIC` and the
+   sidecar's identical.)
+5. On the **iPhone**: open the site in Safari → Share → **Add to Home Screen**,
+   open it from the home screen, then **Profile → Enable notifications** and
+   allow. iOS only permits web push from a home-screen PWA (iOS 16.4+).
