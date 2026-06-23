@@ -843,12 +843,15 @@ export default function Conversation() {
       <Stack.Screen
         options={{
           headerTitle: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+            <Pressable
+              onPress={() => router.push({ pathname: '/chat-info', params: { chat: id } })}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}
+              hitSlop={6}>
               <Avatar user={isDirectChat ? headerPeer : undefined} name={headerName} size={32} />
               <Text style={{ color: '#fff', fontWeight: '800', fontSize: 17 }} numberOfLines={1}>
                 {headerName}
               </Text>
-            </View>
+            </Pressable>
           ),
           headerRight: () => (
             <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>

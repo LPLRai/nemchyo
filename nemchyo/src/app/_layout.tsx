@@ -42,6 +42,7 @@ export default function RootLayout() {
         <Stack.Screen name="new-poll" options={{ title: 'Create Poll' }} />
         <Stack.Screen name="profile" options={{ title: 'Your Profile' }} />
         <Stack.Screen name="chat/[id]" options={{ title: 'Chat' }} />
+        <Stack.Screen name="chat-info" options={{ title: 'Details' }} />
         <Stack.Screen name="invite" options={{ title: 'Invite a member' }} />
         <Stack.Screen name="call/[id]" options={{ headerShown: false, animation: 'fade' }} />
       </Stack>
