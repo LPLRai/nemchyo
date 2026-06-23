@@ -187,6 +187,7 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
   const [messages, setMessages] = useState<any[]>([]);
   const [reactions, setReactions] = useState<Record<string, any[]>>({});
   const [text, setText] = useState('');
+  const [inputH, setInputH] = useState(0); // web: auto-size the composer height
   const [uploading, setUploading] = useState(false);
   const [membership, setMembership] = useState<any>(null);
   const [chatName, setChatName] = useState('Chat');
@@ -1388,12 +1389,20 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
           ) : null}
           <TextInput
             ref={inputRef}
-            style={styles.input}
+            style={[styles.input, Platform.OS === 'web' && { height: Math.min(120, Math.max(40, inputH)) }]}
             value={text}
             onChangeText={handleType}
             onFocus={() => setEmojiOpen(false)}
+            onContentSizeChange={(e) => setInputH(e.nativeEvent.contentSize.height)}
+            // Web: Enter sends, Shift+Enter makes a new line.
+            onKeyPress={(e: any) => {
+              if (Platform.OS === 'web' && e?.nativeEvent?.key === 'Enter' && !e.nativeEvent.shiftKey) {
+                e.preventDefault?.();
+                send();
+              }
+            }}
             placeholder={editing ? 'Edit message' : 'Message'}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={theme.textFaint}
             multiline
           />
           {!editing ? (
