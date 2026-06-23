@@ -81,7 +81,10 @@ export default function Chats() {
             </Pressable>
           ),
           headerRight: () => (
-            <View style={{ flexDirection: 'row', gap: 18 }}>
+            <View style={{ flexDirection: 'row', gap: 18, alignItems: 'center' }}>
+              <Pressable onPress={() => router.push('/calendar')} hitSlop={10}>
+                <Text style={{ fontSize: 20 }}>📅</Text>
+              </Pressable>
               <Pressable onPress={() => router.push('/invite')} hitSlop={10}>
                 <Text style={styles.logout}>Invite</Text>
               </Pressable>

@@ -40,6 +40,8 @@ export default function RootLayout() {
         <Stack.Screen name="chats" options={{ title: 'Nemchyo' }} />
         <Stack.Screen name="new-chat" options={{ title: 'New chat' }} />
         <Stack.Screen name="new-poll" options={{ title: 'Create Poll' }} />
+        <Stack.Screen name="calendar" options={{ title: 'Calendar' }} />
+        <Stack.Screen name="new-event" options={{ title: 'New event' }} />
         <Stack.Screen name="profile" options={{ title: 'Your Profile' }} />
         <Stack.Screen name="chat/[id]" options={{ title: 'Chat' }} />
         <Stack.Screen name="chat-info" options={{ title: 'Details' }} />
