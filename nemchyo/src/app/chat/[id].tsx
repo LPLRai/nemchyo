@@ -1004,12 +1004,11 @@ export default function Conversation() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      // Android already resizes the window for the keyboard (adjustResize), so
-      // letting KeyboardAvoidingView also adjust double-counts and leaves a gap
-      // when the keyboard closes. Only iOS (no adjustResize) needs it.
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      enabled={Platform.OS === 'ios'}
-      keyboardVerticalOffset={insets.top + 44}>
+      // 'padding' lifts the composer by the keyboard height the same as 'height'
+      // did, but cleanly returns to 0 when the keyboard closes — 'height' was
+      // leaving a residual gap below the composer on Android.
+      behavior="padding"
+      keyboardVerticalOffset={insets.top + (Platform.OS === 'ios' ? 44 : 56)}>
       <Stack.Screen
         options={{
           headerTitle: () => (
