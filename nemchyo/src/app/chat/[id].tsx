@@ -96,6 +96,9 @@ function previewOf(m: any): string {
 
 // Collapse runs of consecutive photos from the same sender into one album item
 // (WhatsApp-style), leaving everything else as individual messages.
+const PAGE = 30;
+const MSG_EXPAND = 'sender,reply_to,reply_to.sender';
+
 function buildRenderData(msgs: any[]): any[] {
   const out: any[] = [];
   let i = 0;
@@ -164,7 +167,7 @@ function TypingIndicator({ members, meId }: { members: any[]; meId?: string }) {
 }
 
 export default function Conversation() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, jump: jumpParam, jumpAt } = useLocalSearchParams<{ id: string; jump?: string; jumpAt?: string }>();
   const { isValid, user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -203,6 +206,19 @@ export default function Conversation() {
   const listRef = useRef<FlatList>(null);
   const lastReadWrite = useRef(0);
   const lastTypingWrite = useRef(0);
+  // Windowed history: we load the newest page and page older in on scroll-up so
+  // opening a long chat is instant and starts at the bottom (inverted list).
+  const [hasOlder, setHasOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [atPresent, setAtPresent] = useState(true); // window includes the latest message
+  const [showJump, setShowJump] = useState(false); // scroll-to-bottom button
+  const [pendingJump, setPendingJump] = useState<string | null>(null);
+  const atPresentRef = useRef(true);
+  const showJumpRef = useRef(false);
+  const searchTimer = useRef<any>(null);
+  useEffect(() => {
+    atPresentRef.current = atPresent;
+  }, [atPresent]);
 
   useEffect(() => {
     if (!id) return;
@@ -238,12 +254,21 @@ export default function Conversation() {
         const ps = await pb.collection('pins').getFullList({ filter, sort: '-created', expand: 'message,message.sender' });
         if (active) setPins(ps);
       } catch {}
-      try {
-        const list = await pb
-          .collection('messages')
-          .getList(1, 200, { filter, sort: 'created', expand: 'sender,reply_to,reply_to.sender' });
-        if (active) setMessages(list.items);
-      } catch {}
+      // Load only the newest page; older messages page in on scroll-up. When we
+      // arrived via a "jump to message" link, the jump effect loads that window
+      // instead, so skip the latest-page load here.
+      if (!jumpParam) {
+        try {
+          const list = await pb
+            .collection('messages')
+            .getList(1, PAGE, { filter, sort: '-created', expand: MSG_EXPAND });
+          if (active) {
+            setMessages(list.items.slice().reverse());
+            setHasOlder(list.totalItems > list.items.length);
+            setAtPresent(true);
+          }
+        } catch {}
+      }
       try {
         const rx = await pb
           .collection('reactions')
@@ -263,6 +288,9 @@ export default function Conversation() {
         (e) => {
           setMessages((prev) => {
             if (e.action === 'create') {
+              // Only append live messages when we're viewing the latest window;
+              // otherwise they'd land out of context in a jumped-to history view.
+              if (!atPresentRef.current) return prev;
               if (prev.some((m) => m.id === e.record.id)) return prev;
               return [...prev, e.record];
             }
@@ -345,10 +373,103 @@ export default function Conversation() {
   const headerPeer = isDirectChat ? members.find((m) => m.user !== user?.id)?.expand?.user : null;
   const headerName = isDirectChat ? headerPeer?.display_name || 'Chat' : chatName || 'Chat';
   const renderData = useMemo(() => buildRenderData(messages), [messages]);
+  // The list renders inverted (newest at the bottom) so a long chat opens
+  // instantly at the latest message with no visible scroll-from-top.
+  const inverseData = useMemo(() => renderData.slice().reverse(), [renderData]);
   const selectionMode = selectedIds.length > 0;
   const selMsgs = messages.filter((m) => selectedIds.includes(m.id));
   const oneSel = selMsgs.length === 1 ? selMsgs[0] : null;
   const allOwnSel = selMsgs.length > 0 && selMsgs.every((m) => m.sender === user?.id);
+
+  // Page older messages in when the user scrolls toward the top of history.
+  async function loadOlder() {
+    if (loadingOlder || !hasOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+    try {
+      const oldest = messages[0];
+      const f = pb.filter('chat = {:id} && created < {:c}', { id, c: oldest.created });
+      const list = await pb.collection('messages').getList(1, PAGE, { filter: f, sort: '-created', expand: MSG_EXPAND });
+      const more = list.items.slice().reverse();
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        return [...more.filter((m: any) => !seen.has(m.id)), ...prev];
+      });
+      setHasOlder(list.totalItems > list.items.length);
+    } catch {}
+    setLoadingOlder(false);
+  }
+
+  // Scroll-to-bottom / jump-to-present. If we're already on the latest window,
+  // just scroll down; otherwise reload the latest page first.
+  async function goToPresent() {
+    if (atPresentRef.current) {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      return;
+    }
+    try {
+      const f = pb.filter('chat = {:id}', { id });
+      const list = await pb.collection('messages').getList(1, PAGE, { filter: f, sort: '-created', expand: MSG_EXPAND });
+      setMessages(list.items.slice().reverse());
+      setHasOlder(list.totalItems > list.items.length);
+      setAtPresent(true);
+      setShowJump(false);
+      showJumpRef.current = false;
+      setTimeout(() => listRef.current?.scrollToOffset({ offset: 0, animated: false }), 40);
+    } catch {}
+  }
+
+  // Discord-style: if the target message isn't loaded, load a small window
+  // around it, scroll to it, and flash it. "Jump to present" returns to live.
+  async function jumpToMessage(messageId: string, flash: boolean) {
+    if (messages.some((m) => m.id === messageId)) {
+      if (flash) flashMatch(messageId);
+      else scrollToMatchId(messageId);
+      return;
+    }
+    try {
+      const target = await pb.collection('messages').getOne(messageId, { expand: MSG_EXPAND });
+      const fOld = pb.filter('chat = {:id} && created <= {:c}', { id, c: target.created });
+      const older = await pb.collection('messages').getList(1, 16, { filter: fOld, sort: '-created', expand: MSG_EXPAND });
+      const fNew = pb.filter('chat = {:id} && created > {:c}', { id, c: target.created });
+      const newer = await pb.collection('messages').getList(1, 16, { filter: fNew, sort: 'created', expand: MSG_EXPAND });
+      const windowMsgs = [...older.items.slice().reverse(), ...newer.items];
+      setMessages(windowMsgs);
+      setHasOlder(older.totalItems > older.items.length);
+      const present = newer.totalItems <= newer.items.length;
+      setAtPresent(present);
+      setShowJump(!present);
+      showJumpRef.current = !present;
+      setPendingJump(messageId);
+    } catch {}
+  }
+
+  function onListScroll(e: any) {
+    const y = e.nativeEvent.contentOffset.y;
+    const show = y > 350;
+    if (show !== showJumpRef.current) {
+      showJumpRef.current = show;
+      setShowJump(show);
+    }
+  }
+
+  // Once a jumped-to window has rendered, scroll to + flash the target.
+  useEffect(() => {
+    if (!pendingJump) return;
+    const found = inverseData.some(
+      (it: any) => it.id === pendingJump || (it._album && it.items?.some((m: any) => m.id === pendingJump))
+    );
+    if (found) {
+      const target = pendingJump;
+      setPendingJump(null);
+      setTimeout(() => flashMatch(target), 80);
+    }
+  }, [pendingJump, inverseData]);
+
+  // Arriving from a "jump to message" link (e.g. tapping a pin).
+  useEffect(() => {
+    if (jumpParam) jumpToMessage(jumpParam, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpParam, jumpAt]);
 
   // Position the floating reaction bar near where the finger pressed, but always
   // fully on screen (the bar itself is full-width, so it never overflows sideways).
@@ -696,6 +817,23 @@ export default function Conversation() {
     }
   }
 
+  // Send a Tenor GIF: download it, then push it through the normal image
+  // upload so it lives on our server and renders/animates like any other image.
+  async function sendGif(url: string) {
+    setEmojiOpen(false);
+    try {
+      if (Platform.OS === 'web') {
+        await uploadAsset({ uri: url, fileName: 'tenor.gif', mimeType: 'image/gif' }, 'image', '');
+        return;
+      }
+      const dest = (FileSystem.cacheDirectory || '') + `gif_${Date.now()}.gif`;
+      const dl = await FileSystem.downloadAsync(url, dest);
+      await uploadAsset({ uri: dl.uri, fileName: 'tenor.gif', mimeType: 'image/gif' }, 'image', '');
+    } catch (e: any) {
+      Alert.alert("Couldn't send GIF", e?.message || 'Please try again.');
+    }
+  }
+
   async function pickFromLibrary() {
     setAttachOpen(false);
     try {
@@ -795,7 +933,7 @@ export default function Conversation() {
 
   // ---- in-chat search: highlight matches + ▲/▼ navigation + flash --------
   function scrollToMatchId(msgId: string) {
-    const idx = renderData.findIndex(
+    const idx = inverseData.findIndex(
       (it: any) => it.id === msgId || (it._album && it.items?.some((m: any) => m.id === msgId))
     );
     if (idx >= 0) {
@@ -813,25 +951,32 @@ export default function Conversation() {
     scrollToMatchId(msgId);
   }
 
+  // Search the whole history on the server (debounced) — not just the loaded
+  // window — then jump to the latest match (loading its window if needed).
   function runSearch(q: string) {
     setSearchQuery(q);
-    const query = q.trim().toLowerCase();
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const query = q.trim();
     if (!query) {
       setMatches([]);
       setMatchIdx(0);
       return;
     }
-    const found = messages
-      .filter((m) => !m.deleted_for_everyone && (m.body || '').toLowerCase().includes(query))
-      .map((m) => m.id);
-    setMatches(found);
-    if (found.length > 0) {
-      const last = found.length - 1;
-      setMatchIdx(last);
-      scrollToMatchId(found[last]); // highlight + scroll, no flash yet
-    } else {
-      setMatchIdx(0);
-    }
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const f = pb.filter('chat = {:id} && deleted_for_everyone = false && body ~ {:q}', { id, q: query });
+        const res = await pb.collection('messages').getList(1, 300, { filter: f, sort: 'created', fields: 'id' });
+        const found = res.items.map((m: any) => m.id);
+        setMatches(found);
+        if (found.length > 0) {
+          const last = found.length - 1;
+          setMatchIdx(last);
+          jumpToMessage(found[last], false);
+        } else {
+          setMatchIdx(0);
+        }
+      } catch {}
+    }, 300);
   }
 
   // ▲ = up (earlier), ▼ = down (later). matches are oldest→newest.
@@ -841,7 +986,7 @@ export default function Conversation() {
     if (next < 0) next = 0;
     if (next > matches.length - 1) next = matches.length - 1;
     setMatchIdx(next);
-    flashMatch(matches[next]);
+    jumpToMessage(matches[next], true);
   }
 
   function exitSearch() {
@@ -872,22 +1017,22 @@ export default function Conversation() {
             </Pressable>
           ),
           headerRight: () => (
-            <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', gap: 18, alignItems: 'center' }}>
               {callsSupported ? (
                 <Pressable onPress={() => startCall('audio')} hitSlop={8}>
-                  <Text style={{ fontSize: 19 }}>📞</Text>
+                  <Icon name="phone" size={21} color="#fff" />
                 </Pressable>
               ) : null}
               {callsSupported ? (
                 <Pressable onPress={() => startCall('video')} hitSlop={8}>
-                  <Text style={{ fontSize: 19 }}>🎥</Text>
+                  <Icon name="video" size={22} color="#fff" />
                 </Pressable>
               ) : null}
               <Pressable onPress={() => setSearchMode(true)} hitSlop={8}>
-                <Text style={{ fontSize: 18 }}>🔍</Text>
+                <Icon name="search" size={21} color="#fff" />
               </Pressable>
               <Pressable onPress={() => setMuteVisible(true)} hitSlop={10}>
-                <Text style={{ fontSize: 20 }}>{muted ? '🔕' : '🔔'}</Text>
+                <Icon name={muted ? 'bell-off' : 'bell'} size={21} color="#fff" />
               </Pressable>
             </View>
           ),
@@ -966,14 +1111,23 @@ export default function Conversation() {
 
       <FlatList
         ref={listRef}
-        data={renderData}
+        data={inverseData}
+        inverted
         style={styles.list}
         keyExtractor={(m) => m.id}
         extraData={`${searchQuery}|${flashId}|${selectedIds.length}`}
         contentContainerStyle={{ padding: 12, gap: 10 }}
-        onContentSizeChange={() => {
-          if (!searchMode) listRef.current?.scrollToEnd({ animated: true });
-        }}
+        onScroll={onListScroll}
+        scrollEventThrottle={32}
+        onEndReached={loadOlder}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={
+          loadingOlder ? (
+            <View style={styles.olderLoading}>
+              <ActivityIndicator color={PRIMARY} size="small" />
+            </View>
+          ) : null
+        }
         onScrollToIndexFailed={(info) => {
           listRef.current?.scrollToOffset({ offset: Math.max(0, info.averageItemLength * info.index - 100), animated: true });
           setTimeout(() => {
@@ -1124,6 +1278,13 @@ export default function Conversation() {
         }}
       />
 
+      {showJump || !atPresent ? (
+        <Pressable style={styles.jumpBtn} onPress={goToPresent} hitSlop={6}>
+          <Icon name="chevron-down" size={24} color={PRIMARY} />
+          {!atPresent ? <View style={styles.jumpDot} /> : null}
+        </Pressable>
+      ) : null}
+
       {uploading ? (
         <View style={styles.uploadBar}>
           <ActivityIndicator color={PRIMARY} size="small" />
@@ -1214,6 +1375,7 @@ export default function Conversation() {
         <EmojiPicker
           onPick={(e) => setText((t) => t + e)}
           onBackspace={() => setText((t) => Array.from(t).slice(0, -1).join(''))}
+          onPickGif={sendGif}
         />
       ) : null}
 
@@ -1222,17 +1384,21 @@ export default function Conversation() {
         <Pressable style={styles.backdrop} onPress={() => setAttachOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Send</Text>
-            <Pressable style={styles.sheetRow} onPress={pickFromLibrary}>
-              <Text style={styles.sheetRowText}>🖼️  Photo or Video</Text>
+            <Pressable style={styles.sheetItem} onPress={pickFromLibrary}>
+              <View style={[styles.sheetItemIcon, { backgroundColor: '#EEF0FF' }]}><Icon name="image" size={22} color={PRIMARY} /></View>
+              <Text style={styles.sheetItemText}>Photo or Video</Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={takePhoto}>
-              <Text style={styles.sheetRowText}>📷  Take Photo</Text>
+            <Pressable style={styles.sheetItem} onPress={takePhoto}>
+              <View style={[styles.sheetItemIcon, { backgroundColor: '#E7F7EE' }]}><Icon name="camera" size={22} color="#16A34A" /></View>
+              <Text style={styles.sheetItemText}>Take Photo</Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={pickDocument}>
-              <Text style={styles.sheetRowText}>📄  Document</Text>
+            <Pressable style={styles.sheetItem} onPress={pickDocument}>
+              <View style={[styles.sheetItemIcon, { backgroundColor: '#FFF3E2' }]}><Icon name="document" size={22} color="#EA8A0B" /></View>
+              <Text style={styles.sheetItemText}>Document</Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setAttachOpen(false); router.push({ pathname: '/new-poll', params: { chat: id } }); }}>
-              <Text style={styles.sheetRowText}>📊  Poll</Text>
+            <Pressable style={styles.sheetItem} onPress={() => { setAttachOpen(false); router.push({ pathname: '/new-poll', params: { chat: id } }); }}>
+              <View style={[styles.sheetItemIcon, { backgroundColor: '#FDE9F1' }]}><Icon name="poll" size={22} color="#DB2777" /></View>
+              <Text style={styles.sheetItemText}>Poll</Text>
             </Pressable>
             <Pressable style={styles.sheetCancel} onPress={() => setAttachOpen(false)}>
               <Text style={styles.sheetCancelText}>Cancel</Text>
@@ -1342,6 +1508,9 @@ const styles = StyleSheet.create({
   selAction: { color: '#fff', fontSize: 14, fontWeight: '600' },
   selEmojiRow: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingBottom: 10, backgroundColor: theme.primarySoft },
   list: { flex: 1, backgroundColor: theme.chatBg },
+  olderLoading: { paddingVertical: 14, alignItems: 'center' },
+  jumpBtn: { position: 'absolute', right: 14, bottom: 88, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border, ...shadow.lg },
+  jumpDot: { position: 'absolute', top: 5, right: 7, width: 10, height: 10, borderRadius: 5, backgroundColor: theme.primary, borderWidth: 1.5, borderColor: '#fff' },
   row: { flexDirection: 'row' },
   left: { justifyContent: 'flex-start' },
   right: { justifyContent: 'flex-end' },
@@ -1396,6 +1565,9 @@ const styles = StyleSheet.create({
   sheetTitle: { fontSize: 16, fontWeight: '700', color: '#111827', textAlign: 'center', paddingVertical: 10 },
   sheetRow: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10 },
   sheetRowText: { fontSize: 16, color: '#111827', textAlign: 'center' },
+  sheetItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 12 },
+  sheetItemIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  sheetItemText: { fontSize: 16, color: '#111827', fontWeight: '600' },
   sheetCancel: { paddingVertical: 14, marginTop: 6 },
   sheetCancelText: { fontSize: 16, color: '#6B7280', textAlign: 'center', fontWeight: '600' },
   pollRow: { paddingVertical: 2 },

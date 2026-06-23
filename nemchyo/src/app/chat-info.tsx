@@ -133,6 +133,13 @@ export default function ChatInfo() {
     setViewer({ uris: imgs.map((m) => fileUrl(m, m.file)), index: Math.max(0, idx) });
   }
 
+  // Jump back to the chat at this pinned message (Discord-style).
+  function openPin(item: any) {
+    const msg = item.expand?.message;
+    if (!msg) return;
+    router.navigate({ pathname: '/chat/[id]', params: { id: String(chat), jump: msg.id, jumpAt: String(Date.now()) } });
+  }
+
   return (
     <View style={styles.screen}>
       <Stack.Screen options={{ title: 'Details' }} />
@@ -194,16 +201,30 @@ export default function ChatInfo() {
           <FlatList
             data={pins}
             keyExtractor={(p) => p.id}
-            renderItem={({ item }) => (
-              <View style={styles.row}>
-                <Avatar user={item.expand?.message?.expand?.sender} size={40} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowName}>{item.expand?.message?.expand?.sender?.display_name || 'Member'}</Text>
-                  <Text style={styles.rowSub} numberOfLines={2}>{previewMsg(item.expand?.message)}</Text>
-                </View>
-                <Text style={styles.endIcon}>📌</Text>
-              </View>
-            )}
+            renderItem={({ item }) => {
+              const msg = item.expand?.message;
+              const isImg = msg && msg.type === 'image' && msg.file && !msg.deleted_for_everyone;
+              const isVid = msg && msg.type === 'video' && msg.file && !msg.deleted_for_everyone;
+              return (
+                <Pressable style={styles.row} onPress={() => openPin(item)}>
+                  <Avatar user={msg?.expand?.sender} size={40} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowName}>{msg?.expand?.sender?.display_name || 'Member'}</Text>
+                    <Text style={styles.rowSub} numberOfLines={2}>{previewMsg(msg)}</Text>
+                    <Text style={styles.jumpHint}>Tap to view in chat ›</Text>
+                  </View>
+                  {isImg ? (
+                    <Image source={{ uri: fileUrl(msg, msg.file, { thumb: '120x120' }) }} style={styles.pinThumb} contentFit="cover" />
+                  ) : isVid ? (
+                    <View style={[styles.pinThumb, styles.pinVideo]}>
+                      <Text style={styles.pinPlayIcon}>▶</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.endIcon}>📌</Text>
+                  )}
+                </Pressable>
+              );
+            }}
             ListEmptyComponent={<Empty text="No pinned messages" />}
           />
         ) : null}
@@ -270,6 +291,10 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 13, color: theme.textMuted, marginTop: 1 },
   startIcon: { fontSize: 22 },
   endIcon: { fontSize: 16 },
+  jumpHint: { fontSize: 12, color: theme.primary, marginTop: 3, fontWeight: '600' },
+  pinThumb: { width: 46, height: 46, borderRadius: 8, backgroundColor: '#ECEAF6' },
+  pinVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#1F2937' },
+  pinPlayIcon: { color: '#fff', fontSize: 16 },
   linkUrl: { fontSize: 14.5, color: theme.primary, fontWeight: '600' },
   cell: { flex: 1 / 3, aspectRatio: 1, padding: 1.5 },
   cellImg: { flex: 1, borderRadius: 4, backgroundColor: '#E5E7EB' },

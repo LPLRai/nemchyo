@@ -11,3 +11,8 @@ const DEV_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8090' : 'http://127
 
 // __DEV__ is true under `expo start`, false in production builds.
 export const PB_URL = __DEV__ ? DEV_URL : PROD_URL;
+
+// Tenor (GIF search). 'LIVDSRZULELA' is Tenor's public demo key — fine to start
+// with. For your own higher-rate key, register free at https://tenor.com/gifapi
+// and paste it here.
+export const TENOR_KEY = 'LIVDSRZULELA';

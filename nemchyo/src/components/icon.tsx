@@ -9,7 +9,17 @@ export type IconName =
   | 'send'
   | 'check'
   | 'trash'
-  | 'backspace';
+  | 'backspace'
+  | 'phone'
+  | 'video'
+  | 'search'
+  | 'bell'
+  | 'bell-off'
+  | 'calendar'
+  | 'image'
+  | 'document'
+  | 'poll'
+  | 'chevron-down';
 
 // Hand-drawn line icons via react-native-svg (already native in the build, so
 // these ship over-the-air with no new dependency and no icon-font to load).
@@ -92,6 +102,84 @@ export function Icon({ name, size = 24, color = '#54656F' }: { name: IconName; s
           <Path d="M21 5H8.5a2 2 0 0 0-1.6.8L2.5 12l4.4 6.2a2 2 0 0 0 1.6.8H21a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z" {...s} />
           <Line x1={17} y1={9.5} x2={12} y2={14.5} {...s} />
           <Line x1={12} y1={9.5} x2={17} y2={14.5} {...s} />
+        </Svg>
+      );
+    case 'phone':
+      return (
+        <Svg {...box}>
+          <Path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" {...s} />
+        </Svg>
+      );
+    case 'video':
+      return (
+        <Svg {...box}>
+          <Path d="M23 7l-7 5 7 5V7z" {...s} />
+          <Rect x={1} y={5} width={15} height={14} rx={2} {...s} />
+        </Svg>
+      );
+    case 'search':
+      return (
+        <Svg {...box}>
+          <Circle cx={11} cy={11} r={8} {...s} />
+          <Line x1={21} y1={21} x2={16.65} y2={16.65} {...s} />
+        </Svg>
+      );
+    case 'bell':
+      return (
+        <Svg {...box}>
+          <Path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" {...s} />
+          <Path d="M13.73 21a2 2 0 0 1-3.46 0" {...s} />
+        </Svg>
+      );
+    case 'bell-off':
+      return (
+        <Svg {...box}>
+          <Path d="M13.73 21a2 2 0 0 1-3.46 0" {...s} />
+          <Path d="M18.63 13A17.89 17.89 0 0 1 18 8" {...s} />
+          <Path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" {...s} />
+          <Path d="M18 8a6 6 0 0 0-9.33-5" {...s} />
+          <Line x1={1} y1={1} x2={23} y2={23} {...s} />
+        </Svg>
+      );
+    case 'calendar':
+      return (
+        <Svg {...box}>
+          <Rect x={3} y={4} width={18} height={18} rx={2} {...s} />
+          <Line x1={16} y1={2} x2={16} y2={6} {...s} />
+          <Line x1={8} y1={2} x2={8} y2={6} {...s} />
+          <Line x1={3} y1={10} x2={21} y2={10} {...s} />
+        </Svg>
+      );
+    case 'image':
+      return (
+        <Svg {...box}>
+          <Rect x={3} y={3} width={18} height={18} rx={2} {...s} />
+          <Circle cx={8.5} cy={8.5} r={1.5} {...s} />
+          <Path d="M21 15l-5-5L5 21" {...s} />
+        </Svg>
+      );
+    case 'document':
+      return (
+        <Svg {...box}>
+          <Path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" {...s} />
+          <Path d="M14 2v6h6" {...s} />
+          <Line x1={16} y1={13} x2={8} y2={13} {...s} />
+          <Line x1={16} y1={17} x2={8} y2={17} {...s} />
+          <Line x1={10} y1={9} x2={8} y2={9} {...s} />
+        </Svg>
+      );
+    case 'poll':
+      return (
+        <Svg {...box}>
+          <Line x1={18} y1={20} x2={18} y2={10} {...s} />
+          <Line x1={12} y1={20} x2={12} y2={4} {...s} />
+          <Line x1={6} y1={20} x2={6} y2={14} {...s} />
+        </Svg>
+      );
+    case 'chevron-down':
+      return (
+        <Svg {...box}>
+          <Path d="M6 9l6 6 6-6" {...s} />
         </Svg>
       );
   }

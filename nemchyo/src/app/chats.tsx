@@ -2,6 +2,7 @@ import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/avatar';
+import { Icon } from '@/components/icon';
 import { useAuth } from '@/lib/auth';
 import { isMuted } from '@/lib/mute';
 import { pb } from '@/lib/pb';
@@ -83,7 +84,7 @@ export default function Chats() {
           headerRight: () => (
             <View style={{ flexDirection: 'row', gap: 18, alignItems: 'center' }}>
               <Pressable onPress={() => router.push('/calendar')} hitSlop={10}>
-                <Text style={{ fontSize: 20 }}>📅</Text>
+                <Icon name="calendar" size={22} color="#fff" />
               </Pressable>
               <Pressable onPress={() => router.push('/invite')} hitSlop={10}>
                 <Text style={styles.logout}>Invite</Text>

@@ -85,65 +85,88 @@ export default function Calendar() {
   }
 
   const detailRsvps = detail ? rsvps.filter((r) => r.event === detail.id) : [];
+  const now = new Date();
+  const upcoming = events.filter((e) => new Date(e.ends_at || e.starts_at) >= now).slice(0, 15);
+
+  function renderCard(ev: any, showDate: boolean) {
+    const d = new Date(ev.starts_at);
+    const when = ev.all_day ? 'All day' : fmtTime(ev.starts_at) + (ev.ends_at ? ' – ' + fmtTime(ev.ends_at) : '');
+    return (
+      <Pressable key={ev.id + (showDate ? '-u' : '-d')} style={styles.card} onPress={() => setDetail(ev)}>
+        {showDate ? (
+          <View style={styles.dateBadge}>
+            <Text style={styles.badgeMonth}>{MONTHS[d.getMonth()].slice(0, 3).toUpperCase()}</Text>
+            <Text style={styles.badgeDay}>{d.getDate()}</Text>
+          </View>
+        ) : (
+          <View style={styles.cardAccent} />
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{ev.title}</Text>
+          <Text style={styles.cardWhen} numberOfLines={1}>{when}{ev.location ? '  ·  ' + ev.location : ''}</Text>
+          <Text style={styles.cardGoing}>{rsvpCount(ev.id, 'going')} going{myRsvp(ev.id) ? ` · you: ${myRsvp(ev.id)}` : ''}</Text>
+        </View>
+      </Pressable>
+    );
+  }
 
   return (
     <View style={styles.screen}>
       <Stack.Screen options={{ title: 'Calendar' }} />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-        <View style={styles.monthBar}>
-          <Pressable onPress={() => setCursor(new Date(year, month - 1, 1))} hitSlop={10}>
-            <Text style={styles.navArrow}>‹</Text>
-          </Pressable>
-          <Text style={styles.monthLabel}>{MONTHS[month]} {year}</Text>
-          <Pressable onPress={() => setCursor(new Date(year, month + 1, 1))} hitSlop={10}>
-            <Text style={styles.navArrow}>›</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.weekRow}>
-          {WEEKDAYS.map((w, i) => (
-            <Text key={i} style={styles.weekday}>{w}</Text>
-          ))}
-        </View>
-
-        <View style={styles.grid}>
-          {cells.map((d, i) => {
-            if (d === null) return <View key={i} style={styles.cell} />;
-            const cellDate = new Date(year, month, d);
-            const k = dayKey(cellDate);
-            const isSel = k === selKey;
-            const isToday = k === todayKey;
-            const has = (eventsByDay[k] || []).length > 0;
-            return (
-              <Pressable key={i} style={styles.cell} onPress={() => setSelected(cellDate)}>
-                <View style={[styles.dayCircle, isSel && styles.daySel, !isSel && isToday && styles.dayToday]}>
-                  <Text style={[styles.dayNum, isSel && { color: '#fff' }, !isSel && isToday && { color: theme.primary }]}>{d}</Text>
-                </View>
-                <View style={[styles.dot, has ? { backgroundColor: isSel ? '#fff' : theme.primary } : null]} />
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Text style={styles.dayHeader}>{fmtDay(selected)}</Text>
-        {dayEvents.length === 0 ? (
-          <Text style={styles.noEvents}>No events this day</Text>
-        ) : (
-          dayEvents.map((ev) => (
-            <Pressable key={ev.id} style={styles.eventRow} onPress={() => setDetail(ev)}>
-              <View style={styles.eventTimeCol}>
-                <Text style={styles.eventTime}>{ev.all_day ? 'All day' : fmtTime(ev.starts_at)}</Text>
-              </View>
-              <View style={styles.eventBar} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.eventTitle}>{ev.title}</Text>
-                {ev.location ? <Text style={styles.eventLoc}>📍 {ev.location}</Text> : null}
-                <Text style={styles.eventGoing}>{rsvpCount(ev.id, 'going')} going{myRsvp(ev.id) ? ` · you: ${myRsvp(ev.id)}` : ''}</Text>
-              </View>
+      <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.calCard}>
+          <View style={styles.monthBar}>
+            <Pressable onPress={() => setCursor(new Date(year, month - 1, 1))} hitSlop={10} style={styles.navBtn}>
+              <Text style={styles.navArrow}>‹</Text>
             </Pressable>
-          ))
+            <Text style={styles.monthLabel}>{MONTHS[month]} {year}</Text>
+            <Pressable onPress={() => setCursor(new Date(year, month + 1, 1))} hitSlop={10} style={styles.navBtn}>
+              <Text style={styles.navArrow}>›</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.weekRow}>
+            {WEEKDAYS.map((w, i) => (
+              <Text key={i} style={styles.weekday}>{w}</Text>
+            ))}
+          </View>
+
+          <View style={styles.grid}>
+            {cells.map((d, i) => {
+              if (d === null) return <View key={i} style={styles.cell} />;
+              const cellDate = new Date(year, month, d);
+              const k = dayKey(cellDate);
+              const isSel = k === selKey;
+              const isToday = k === todayKey;
+              const has = (eventsByDay[k] || []).length > 0;
+              return (
+                <Pressable key={i} style={styles.cell} onPress={() => setSelected(cellDate)}>
+                  <View style={[styles.dayCircle, isSel && styles.daySel, !isSel && isToday && styles.dayToday]}>
+                    <Text style={[styles.dayNum, isSel && { color: '#fff', fontWeight: '800' }, !isSel && isToday && { color: theme.primary, fontWeight: '800' }]}>{d}</Text>
+                  </View>
+                  <View style={[styles.dot, has ? { backgroundColor: isSel ? '#fff' : theme.primary } : null]} />
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <Text style={styles.sectionLabel}>{fmtDay(selected)}</Text>
+        {dayEvents.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.noEvents}>No events this day</Text>
+          </View>
+        ) : (
+          dayEvents.map((ev) => renderCard(ev, false))
         )}
+
+        {upcoming.length > 0 ? (
+          <>
+            <Text style={[styles.sectionLabel, { marginTop: 20 }]}>Upcoming</Text>
+            {upcoming.map((ev) => renderCard(ev, true))}
+          </>
+        ) : null}
       </ScrollView>
 
       <Pressable
@@ -222,27 +245,31 @@ export default function Calendar() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.bg },
-  monthBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 14 },
+  calCard: { backgroundColor: '#fff', borderRadius: 20, marginHorizontal: 12, marginTop: 12, paddingBottom: 12, shadowColor: '#2A1F6E', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+  monthBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10 },
   monthLabel: { fontSize: 19, fontWeight: '800', color: theme.text },
-  navArrow: { fontSize: 30, color: theme.primary, fontWeight: '300', paddingHorizontal: 8 },
-  weekRow: { flexDirection: 'row', paddingHorizontal: 8 },
-  weekday: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '700', color: theme.textFaint, paddingBottom: 6 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8 },
-  cell: { width: `${100 / 7}%`, height: 52, alignItems: 'center', justifyContent: 'center' },
-  dayCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  navBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.primarySoft },
+  navArrow: { fontSize: 24, color: theme.primary, fontWeight: '500', marginTop: -3 },
+  weekRow: { flexDirection: 'row', paddingHorizontal: 6 },
+  weekday: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '700', color: theme.textFaint, paddingBottom: 4 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 6 },
+  cell: { width: `${100 / 7}%`, height: 46, alignItems: 'center', justifyContent: 'center' },
+  dayCircle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   daySel: { backgroundColor: theme.primary },
   dayToday: { backgroundColor: theme.primarySoft },
   dayNum: { fontSize: 15.5, color: theme.text, fontWeight: '600' },
-  dot: { width: 5, height: 5, borderRadius: 3, marginTop: 2, backgroundColor: 'transparent' },
-  dayHeader: { fontSize: 15, fontWeight: '800', color: theme.text, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  noEvents: { fontSize: 14, color: theme.textFaint, paddingHorizontal: 16, paddingVertical: 10 },
-  eventRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 10 },
-  eventTimeCol: { width: 62 },
-  eventTime: { fontSize: 13, color: theme.textMuted, fontWeight: '600' },
-  eventBar: { width: 3, alignSelf: 'stretch', borderRadius: 2, backgroundColor: theme.primary },
-  eventTitle: { fontSize: 16, fontWeight: '700', color: theme.text },
-  eventLoc: { fontSize: 13, color: theme.textMuted, marginTop: 1 },
-  eventGoing: { fontSize: 12.5, color: theme.primary, marginTop: 2, fontWeight: '600' },
+  dot: { width: 6, height: 6, borderRadius: 3, marginTop: 1, backgroundColor: 'transparent' },
+  sectionLabel: { fontSize: 15, fontWeight: '800', color: theme.text, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 8 },
+  emptyCard: { marginHorizontal: 12, paddingVertical: 18, alignItems: 'center', backgroundColor: '#fff', borderRadius: 14 },
+  noEvents: { fontSize: 14, color: theme.textFaint },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 14, marginHorizontal: 12, marginBottom: 8, paddingVertical: 12, paddingHorizontal: 12, shadowColor: '#2A1F6E', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  cardAccent: { width: 4, height: 42, borderRadius: 2, backgroundColor: theme.primary },
+  dateBadge: { width: 46, height: 46, borderRadius: 12, backgroundColor: theme.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  badgeMonth: { fontSize: 10.5, fontWeight: '800', color: theme.primary, letterSpacing: 0.5 },
+  badgeDay: { fontSize: 18, fontWeight: '800', color: theme.primary, marginTop: -1 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: theme.text },
+  cardWhen: { fontSize: 13, color: theme.textMuted, marginTop: 2 },
+  cardGoing: { fontSize: 12.5, color: theme.primary, marginTop: 3, fontWeight: '600' },
   fab: { position: 'absolute', right: 20, bottom: 30, width: 60, height: 60, borderRadius: 30, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center', shadowColor: '#2A1F6E', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
   fabIcon: { color: '#fff', fontSize: 32, fontWeight: '300', marginTop: -2 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
