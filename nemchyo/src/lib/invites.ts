@@ -26,3 +26,27 @@ export function buildJoinUrl(code: string) {
       : 'https://chat.sixfriendstrekking.com';
   return `${base}/join?code=${encodeURIComponent(code)}`;
 }
+
+// --- Linked devices (sign the same account in on another device/browser) ---
+
+// On a signed-in device: mint a short, short-lived link code.
+export async function createDeviceLink(): Promise<{ code: string; expiresAt: string }> {
+  return await pb.send('/api/device-link/create', { method: 'POST', body: {} });
+}
+
+// On the new device: redeem the code -> save the returned token (now signed in).
+export async function redeemDeviceLink(code: string) {
+  const res: any = await pb.send('/api/device-link/redeem', { method: 'POST', body: { code } });
+  pb.authStore.save(res.token, res.record);
+  return res;
+}
+
+// URL encoded in the QR — scanning it with a phone camera opens the web app and
+// signs that browser in.
+export function buildLinkUrl(code: string) {
+  const base =
+    Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://chat.sixfriendstrekking.com';
+  return `${base}/link?code=${encodeURIComponent(code)}`;
+}

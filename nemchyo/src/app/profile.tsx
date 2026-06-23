@@ -135,6 +135,11 @@ export default function Profile() {
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save</Text>}
       </Pressable>
 
+      <Pressable style={styles.linkBtn} onPress={() => router.push('/link-device')}>
+        <Text style={styles.linkBtnText}>＋  Link another device</Text>
+      </Pressable>
+      <Text style={styles.linkHint}>Use the same account on another phone or in a browser.</Text>
+
       <Text style={styles.email}>Signed in as {user?.email}</Text>
     </ScrollView>
   );
@@ -180,5 +185,8 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   saveText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  linkBtn: { alignSelf: 'stretch', backgroundColor: '#EEF0FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  linkBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 15.5 },
+  linkHint: { color: '#9CA3AF', fontSize: 12.5, textAlign: 'center', marginTop: 6 },
   email: { color: '#9CA3AF', fontSize: 12, marginTop: 16 },
 });

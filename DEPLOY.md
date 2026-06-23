@@ -130,10 +130,20 @@ Plug in an external drive / add Backblaze B2 later for offsite copies, and **tes
 
 ---
 
-### Update routine (when we ship backend changes)
+### Update routine (when we ship changes)
 ```bash
 cd ~/nemchyo && git pull
 cp -r ~/nemchyo/backend/pb_migrations/* ~/nemchyo-server/pb_migrations/
-cp -r ~/nemchyo/backend/pb_hooks/* ~/nemchyo-server/pb_hooks/
+cp -r ~/nemchyo/backend/pb_hooks/*      ~/nemchyo-server/pb_hooks/
+
+# Web / PWA (chat.sixfriendstrekking.com) — PocketBase serves pb_public.
+# This step was missing, which is why the browser/iPhone web stayed on an old
+# build. Re-copy the committed web export every time the web changes:
+rm -rf ~/nemchyo-server/pb_public/*
+cp -r  ~/nemchyo/nemchyo/dist/*  ~/nemchyo-server/pb_public/
+
 sudo systemctl restart pocketbase     # migrations auto-apply on start
 ```
+After this, on the iPhone do a hard refresh (or remove + re-add the PWA to the
+home screen) once — Safari caches `index.html` aggressively. The JS bundles are
+content-hashed, so subsequent updates pick up automatically.

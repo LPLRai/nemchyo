@@ -4,14 +4,26 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { pb } from './pb';
 
+// The chat the user is currently looking at — set by the chat screen so we can
+// suppress redundant notifications for messages they're already reading.
+let activeChatId: string | null = null;
+export function setActiveChat(id: string | null) {
+  activeChatId = id;
+}
+
 // How notifications behave when the app is in the foreground.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    const data: any = notification?.request?.content?.data || {};
+    const inThisChat = !!data?.chatId && data.chatId === activeChatId;
+    const show = !inThisChat; // don't notify for the chat you're already in
+    return {
+      shouldShowBanner: show,
+      shouldShowList: show,
+      shouldPlaySound: show,
+      shouldSetBadge: show,
+    };
+  },
 });
 
 let registered = false;

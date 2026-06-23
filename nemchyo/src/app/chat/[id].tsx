@@ -37,6 +37,7 @@ import { PB_URL } from '@/lib/config';
 import { fileUrl } from '@/lib/files';
 import { isMuted, MUTE_OPTIONS, muteLabel, muteUntilValue } from '@/lib/mute';
 import { pb } from '@/lib/pb';
+import { setActiveChat } from '@/lib/push';
 import { shadow, theme } from '@/lib/theme';
 import { callsSupported } from '@/lib/webrtc';
 import { PRIMARY } from '../_layout';
@@ -223,6 +224,12 @@ export default function Conversation() {
   useEffect(() => {
     atPresentRef.current = atPresent;
   }, [atPresent]);
+
+  // Mark this chat active so push notifications for it are suppressed while open.
+  useEffect(() => {
+    setActiveChat(id);
+    return () => setActiveChat(null);
+  }, [id]);
 
   // Android: drive the composer lift ourselves from keyboard events. Keyboard
   // AvoidingView mis-measures its frame under adjustResize and leaves a gap

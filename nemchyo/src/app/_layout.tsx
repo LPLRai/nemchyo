@@ -37,6 +37,8 @@ export default function RootLayout() {
         }}>
         <Stack.Screen name="index" options={{ title: 'Nemchyo' }} />
         <Stack.Screen name="join" options={{ title: 'Join Nemchyo' }} />
+        <Stack.Screen name="link" options={{ title: 'Link a device' }} />
+        <Stack.Screen name="link-device" options={{ title: 'Link a device' }} />
         <Stack.Screen name="chats" options={{ title: 'Nemchyo' }} />
         <Stack.Screen name="new-chat" options={{ title: 'New chat' }} />
         <Stack.Screen name="new-poll" options={{ title: 'Create Poll' }} />

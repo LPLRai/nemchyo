@@ -88,6 +88,11 @@ export default function Login() {
             <Text style={styles.joinLink}>Have an invite? Join here →</Text>
           </Pressable>
         </Link>
+        <Link href="/link" asChild>
+          <Pressable hitSlop={8}>
+            <Text style={styles.linkDevice}>Already on another device? Link this one →</Text>
+          </Pressable>
+        </Link>
       </View>
     </KeyboardAvoidingView>
   );
@@ -138,5 +143,6 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
   joinLink: { color: theme.primary, fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 10 },
+  linkDevice: { color: theme.textMuted, fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 2 },
   error: { color: theme.danger, fontSize: 14, textAlign: 'center' },
 });
