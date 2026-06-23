@@ -181,6 +181,8 @@ export default function Conversation() {
   const [forwardChats, setForwardChats] = useState<any[]>([]);
   const [callPick, setCallPick] = useState<{ kind: 'audio' | 'video'; members: any[] } | null>(null);
   const [members, setMembers] = useState<any[]>([]);
+  const [pins, setPins] = useState<any[]>([]);
+  const [pinIdx, setPinIdx] = useState(0);
   const [attachOpen, setAttachOpen] = useState(false);
   const [searchMode, setSearchMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -204,6 +206,7 @@ export default function Conversation() {
     let unsubMsg: (() => void) | undefined;
     let unsubReact: (() => void) | undefined;
     let unsubMembers: (() => void) | undefined;
+    let unsubPins: (() => void) | undefined;
     let active = true;
 
     (async () => {
@@ -225,6 +228,10 @@ export default function Conversation() {
       try {
         const all = await pb.collection('chat_members').getFullList({ filter, expand: 'user' });
         if (active) setMembers(all);
+      } catch {}
+      try {
+        const ps = await pb.collection('pins').getFullList({ filter, sort: '-created', expand: 'message,message.sender' });
+        if (active) setPins(ps);
       } catch {}
       try {
         const list = await pb
@@ -292,6 +299,19 @@ export default function Conversation() {
         },
         { filter, expand: 'user' }
       );
+
+      // Pinned messages — reload on any change to keep the expanded message.
+      unsubPins = await pb.collection('pins').subscribe(
+        '*',
+        async (e) => {
+          if (e.record.chat !== id) return;
+          try {
+            const ps = await pb.collection('pins').getFullList({ filter, sort: '-created', expand: 'message,message.sender' });
+            setPins(ps);
+          } catch {}
+        },
+        { filter }
+      );
       } catch (e) {
         /* realtime (SSE) unavailable — messages still load on open/refresh */
       }
@@ -302,6 +322,7 @@ export default function Conversation() {
       if (unsubMsg) unsubMsg();
       if (unsubReact) unsubReact();
       if (unsubMembers) unsubMembers();
+      if (unsubPins) unsubPins();
     };
   }, [id, user?.id]);
 
@@ -319,6 +340,7 @@ export default function Conversation() {
   const headerName = isDirectChat ? headerPeer?.display_name || 'Chat' : chatName || 'Chat';
   const renderData = useMemo(() => buildRenderData(messages), [messages]);
   const selectionMode = selectedIds.length > 0;
+  const curPin = pins.length > 0 ? pins[Math.min(pinIdx, pins.length - 1)] : null;
   const selMsgs = messages.filter((m) => selectedIds.includes(m.id));
   const oneSel = selMsgs.length === 1 ? selMsgs[0] : null;
   const allOwnSel = selMsgs.length > 0 && selMsgs.every((m) => m.sender === user?.id);
@@ -455,6 +477,26 @@ export default function Conversation() {
     exitSelection();
     try {
       await pb.collection('messages').update(message.id, { deleted_for_everyone: true, body: '' });
+    } catch {}
+  }
+
+  function isPinned(msgId: string) {
+    return pins.some((p) => p.message === msgId);
+  }
+  async function pinMessage(message: any) {
+    exitSelection();
+    try {
+      await pb.collection('pins').create({ chat: id, message: message.id, pinned_by: user.id });
+    } catch (e: any) {
+      Alert.alert("Couldn't pin", e?.message || 'Please try again.');
+    }
+  }
+  async function unpinMessage(msgId: string) {
+    exitSelection();
+    const pin = pins.find((p) => p.message === msgId);
+    if (!pin) return;
+    try {
+      await pb.collection('pins').delete(pin.id);
     } catch {}
   }
 
@@ -868,6 +910,11 @@ export default function Conversation() {
                 <Text style={styles.selAction}>Reply</Text>
               </Pressable>
             ) : null}
+            {oneSel && !oneSel.deleted_for_everyone ? (
+              <Pressable onPress={() => oneSel && (isPinned(oneSel.id) ? unpinMessage(oneSel.id) : pinMessage(oneSel))} hitSlop={8}>
+                <Text style={styles.selAction}>{isPinned(oneSel.id) ? 'Unpin' : 'Pin'}</Text>
+              </Pressable>
+            ) : null}
             <Pressable onPress={openForward} hitSlop={8}>
               <Text style={styles.selAction}>Forward</Text>
             </Pressable>
@@ -888,6 +935,27 @@ export default function Conversation() {
             ) : null}
           </View>
         </View>
+      ) : null}
+
+      {curPin && !searchMode && !selectionMode ? (
+        <Pressable
+          style={styles.pinBar}
+          onPress={() => {
+            const m = curPin.expand?.message;
+            if (m) flashMatch(m.id);
+            if (pins.length > 1) setPinIdx((i) => (i + 1) % pins.length);
+          }}>
+          <Text style={styles.pinIconTxt}>📌</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.pinLabel}>
+              Pinned{pins.length > 1 ? ` · ${Math.min(pinIdx, pins.length - 1) + 1}/${pins.length}` : ''}
+            </Text>
+            <Text style={styles.pinPreview} numberOfLines={1}>{previewOf(curPin.expand?.message)}</Text>
+          </View>
+          <Pressable onPress={() => unpinMessage(curPin.expand?.message?.id)} hitSlop={10}>
+            <Text style={styles.pinX}>✕</Text>
+          </Pressable>
+        </Pressable>
       ) : null}
 
       {muted ? (
@@ -1255,6 +1323,11 @@ const styles = StyleSheet.create({
   searchArrow: { fontSize: 16, color: theme.primary, fontWeight: '700', paddingHorizontal: 2 },
   flashBox: { position: 'absolute', left: 0, right: 0, top: -4, bottom: -4, borderRadius: 10, backgroundColor: 'rgba(99,89,242,0.22)' },
   hl: { backgroundColor: '#FDE047', color: '#1E2233' },
+  pinBar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: theme.border },
+  pinIconTxt: { fontSize: 18 },
+  pinLabel: { fontSize: 12, color: theme.primary, fontWeight: '700' },
+  pinPreview: { fontSize: 13.5, color: theme.textMuted, marginTop: 1 },
+  pinX: { fontSize: 16, color: theme.textFaint, fontWeight: '700' },
   selBarWrap: { backgroundColor: theme.primaryDark },
   selBar: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 14, paddingVertical: 10 },
   selX: { color: '#fff', fontSize: 20, fontWeight: '700' },
