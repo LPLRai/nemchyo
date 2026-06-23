@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
-import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
+import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/avatar';
 import { ImageViewer } from '@/components/image-album';
 import { VideoPlayerModal } from '@/components/video-player';
@@ -39,6 +39,7 @@ function Empty({ text }: { text: string }) {
 export default function ChatInfo() {
   const { chat } = useLocalSearchParams<{ chat: string }>();
   const { isValid, user } = useAuth();
+  const router = useRouter();
   const [chatRec, setChatRec] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [media, setMedia] = useState<any[]>([]);
@@ -97,6 +98,30 @@ export default function ChatInfo() {
   const isDirect = chatRec?.type === 'direct';
   const peer = isDirect ? members.find((m) => m.user !== user?.id)?.expand?.user : null;
   const title = isDirect ? peer?.display_name || 'Chat' : chatRec?.name || 'Chat';
+  const myRole = members.find((m) => m.user === user?.id)?.role;
+  const canDelete = chatRec && chatRec.type !== 'direct' && chatRec.type !== 'family' && (myRole === 'owner' || myRole === 'admin');
+
+  function deleteGroup() {
+    Alert.alert('Delete group?', 'This permanently deletes the group and all its messages for everyone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await pb.send('/api/delete-chat', { method: 'POST', body: { chat } });
+            try {
+              router.dismiss(2);
+            } catch {
+              router.replace('/chats');
+            }
+          } catch (e: any) {
+            Alert.alert("Couldn't delete", e?.message || 'Please try again.');
+          }
+        },
+      },
+    ]);
+  }
 
   function openMedia(item: any) {
     if (item.type === 'video') {
@@ -218,6 +243,12 @@ export default function ChatInfo() {
         ) : null}
       </View>
 
+      {canDelete ? (
+        <Pressable style={styles.deleteBtn} onPress={deleteGroup}>
+          <Text style={styles.deleteText}>🗑️  Delete group</Text>
+        </Pressable>
+      ) : null}
+
       <ImageViewer uris={viewer?.uris ?? null} index={viewer?.index ?? 0} onClose={() => setViewer(null)} />
       {videoUri ? <VideoPlayerModal uri={videoUri} onClose={() => setVideoUri(null)} /> : null}
     </View>
@@ -246,4 +277,6 @@ const styles = StyleSheet.create({
   playIcon: { color: '#fff', fontSize: 26, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
   empty: { alignItems: 'center', paddingTop: 60 },
   emptyText: { fontSize: 15, color: theme.textFaint },
+  deleteBtn: { margin: 16, paddingVertical: 15, borderRadius: 14, backgroundColor: '#FEE2E2', alignItems: 'center' },
+  deleteText: { color: '#DC2626', fontSize: 16, fontWeight: '700' },
 });
