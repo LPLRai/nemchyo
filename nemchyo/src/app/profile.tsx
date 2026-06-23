@@ -1,8 +1,10 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { Redirect, Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -12,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { Avatar } from '@/components/avatar';
+import { PB_URL } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
 import { PRIMARY } from './_layout';
@@ -41,18 +44,38 @@ export default function Profile() {
     const asset = res.assets[0];
     setUploading(true);
     try {
-      const form = new FormData();
       const filename = asset.fileName || 'avatar.jpg';
       if (Platform.OS === 'web') {
+        const form = new FormData();
         const blob = asset.file ?? (await (await fetch(asset.uri)).blob());
         form.append('avatar', blob, filename);
+        await pb.collection('users').update(user.id, form);
       } else {
-        form.append('avatar', { uri: asset.uri, name: filename, type: asset.mimeType || 'image/jpeg' } as any);
+        // Native: use expo-file-system's multipart uploader. Plain RN FormData
+        // with { uri, name, type } silently fails to read the file on Android,
+        // so the avatar never actually saved.
+        let uploadUri = asset.uri;
+        if (uploadUri && !uploadUri.startsWith('file://')) {
+          try {
+            const dest = (FileSystem.cacheDirectory || '') + `avatar_${Date.now()}.jpg`;
+            await FileSystem.copyAsync({ from: uploadUri, to: dest });
+            uploadUri = dest;
+          } catch {
+            /* fall back to the original uri */
+          }
+        }
+        const up = await FileSystem.uploadAsync(`${PB_URL}/api/collections/users/records/${user.id}`, uploadUri, {
+          httpMethod: 'PATCH',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'avatar',
+          mimeType: asset.mimeType || 'image/jpeg',
+          headers: pb.authStore.token ? { Authorization: pb.authStore.token } : {},
+        });
+        if (up.status >= 400) throw new Error(`Upload failed (${up.status})`);
       }
-      await pb.collection('users').update(user.id, form);
       await pb.collection('users').authRefresh(); // refresh authStore so the new avatar shows everywhere
-    } catch {
-      /* ignore — keep the old avatar on failure */
+    } catch (e: any) {
+      Alert.alert("Couldn't update photo", e?.message || 'Please try again.');
     } finally {
       setUploading(false);
     }
