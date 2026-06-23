@@ -1,5 +1,6 @@
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useColors } from '@/lib/theme';
 
 function fmt(sec: number) {
   if (!sec || sec < 0) sec = 0;
@@ -10,13 +11,14 @@ function fmt(sec: number) {
 
 // A WhatsApp-style voice note bubble: play/pause + progress + time.
 export function VoiceMessage({ uri, mine }: { uri: string; mine: boolean }) {
+  const theme = useColors();
   const player = useAudioPlayer({ uri });
   const status = useAudioPlayerStatus(player);
   const playing = !!status?.playing;
   const dur = status?.duration || 0;
   const pos = status?.currentTime || 0;
   const pct = dur > 0 ? Math.min(1, pos / dur) : 0;
-  const color = mine ? '#fff' : '#6359F2';
+  const color = mine ? '#fff' : theme.primary;
 
   function toggle() {
     try {
@@ -34,10 +36,10 @@ export function VoiceMessage({ uri, mine }: { uri: string; mine: boolean }) {
       <Pressable onPress={toggle} hitSlop={8} style={styles.btn}>
         <Text style={[styles.icon, { color }]}>{playing ? '❚❚' : '▶'}</Text>
       </Pressable>
-      <View style={[styles.track, { backgroundColor: mine ? 'rgba(255,255,255,0.35)' : '#D6D3E8' }]}>
+      <View style={[styles.track, { backgroundColor: mine ? 'rgba(255,255,255,0.35)' : theme.border }]}>
         <View style={[styles.fill, { width: `${pct * 100}%`, backgroundColor: color }]} />
       </View>
-      <Text style={[styles.time, { color: mine ? '#E0E7FF' : '#6B7280' }]}>{fmt(playing || pos > 0 ? pos : dur)}</Text>
+      <Text style={[styles.time, { color: mine ? '#E0E7FF' : theme.textMuted }]}>{fmt(playing || pos > 0 ? pos : dur)}</Text>
     </View>
   );
 }

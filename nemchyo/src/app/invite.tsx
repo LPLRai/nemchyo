@@ -13,10 +13,13 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from '@/lib/auth';
 import { buildJoinUrl, createInvite } from '@/lib/invites';
+import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 import { PRIMARY } from './_layout';
 
 export default function Invite() {
   const { isValid } = useAuth();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [link, setLink] = useState('');
@@ -62,7 +65,7 @@ export default function Invite() {
         value={name}
         onChangeText={setName}
         placeholder="e.g. Uncle Ramesh"
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor={theme.textFaint}
       />
 
       <Pressable
@@ -114,41 +117,41 @@ export default function Invite() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   container: { padding: 24, gap: 8, alignItems: 'stretch', maxWidth: 460, width: '100%', alignSelf: 'center' },
-  heading: { fontSize: 22, fontWeight: '800', color: '#111827' },
-  help: { fontSize: 14, color: '#6B7280', marginBottom: 12, lineHeight: 20 },
-  label: { fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 8 },
+  heading: { fontSize: 22, fontWeight: '800', color: theme.text },
+  help: { fontSize: 14, color: theme.textMuted, marginBottom: 12, lineHeight: 20 },
+  label: { fontSize: 13, fontWeight: '600', color: theme.textMuted, marginTop: 8 },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.card,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#111827',
+    color: theme.text,
   },
   button: { backgroundColor: PRIMARY, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 14 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  error: { color: '#DC2626', fontSize: 14, marginTop: 8 },
+  error: { color: theme.danger, fontSize: 14, marginTop: 8 },
   result: { alignItems: 'center', gap: 8, marginTop: 22 },
-  qrWrap: { padding: 16, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' },
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', letterSpacing: 1, marginTop: 14 },
+  qrWrap: { padding: 16, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: theme.border },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: theme.textFaint, letterSpacing: 1, marginTop: 14 },
   codeBox: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: theme.primarySoft,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
+    borderColor: theme.primary,
   },
   codeText: { fontSize: 24, fontWeight: '800', color: PRIMARY, letterSpacing: 2, textAlign: 'center' },
   link: { fontSize: 13, color: PRIMARY, textAlign: 'center' },
-  copyBtn: { backgroundColor: '#EEF2FF', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9, marginTop: 4 },
+  copyBtn: { backgroundColor: theme.primarySoft, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9, marginTop: 4 },
   copyText: { color: PRIMARY, fontWeight: '700' },
-  howto: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 14, gap: 8, marginTop: 16, alignSelf: 'stretch' },
-  howtoText: { fontSize: 13, color: '#374151', lineHeight: 19 },
+  howto: { backgroundColor: theme.card, borderRadius: 12, padding: 14, gap: 8, marginTop: 16, alignSelf: 'stretch' },
+  howtoText: { fontSize: 13, color: theme.textMuted, lineHeight: 19 },
   bold: { fontWeight: '700' },
-  note: { fontSize: 12, color: '#9CA3AF', textAlign: 'center', marginTop: 8 },
+  note: { fontSize: 12, color: theme.textFaint, textAlign: 'center', marginTop: 8 },
 });

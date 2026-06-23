@@ -81,7 +81,7 @@ export default function Chats() {
       <Stack.Screen
         options={{
           headerLeft: () => (
-            <Pressable onPress={() => router.push('/profile')} hitSlop={10} style={{ marginLeft: 4 }}>
+            <Pressable onPress={() => router.push('/profile')} hitSlop={10} style={{ marginLeft: 4, marginRight: 12 }}>
               <Avatar user={user} size={32} />
             </Pressable>
           ),
