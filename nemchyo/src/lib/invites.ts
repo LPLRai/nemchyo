@@ -34,6 +34,12 @@ export async function createDeviceLink(): Promise<{ code: string; expiresAt: str
   return await pb.send('/api/device-link/create', { method: 'POST', body: {} });
 }
 
+// Account recovery: a family admin mints a sign-in code FOR another member
+// (who lost their only device). Returns the same { code, expiresAt }.
+export async function createDeviceLinkFor(userId: string): Promise<{ code: string; expiresAt: string }> {
+  return await pb.send('/api/device-link/create-for', { method: 'POST', body: { user: userId } });
+}
+
 // On the new device: redeem the code -> save the returned token (now signed in).
 export async function redeemDeviceLink(code: string) {
   const res: any = await pb.send('/api/device-link/redeem', { method: 'POST', body: { code } });

@@ -147,3 +147,39 @@ sudo systemctl restart pocketbase     # migrations auto-apply on start
 After this, on the iPhone do a hard refresh (or remove + re-add the PWA to the
 home screen) once — Safari caches `index.html` aggressively. The JS bundles are
 content-hashed, so subsequent updates pick up automatically.
+
+---
+
+### Monitoring (disk full + server/laptop down)
+A small script pushes a phone alert when the disk fills or PocketBase stops, and
+pings an external uptime check so you're told if the whole laptop goes offline.
+
+1. Phone push: install the free **ntfy** app, and subscribe to a secret topic
+   (e.g. `nemchyo-7f3k9q`). Put that topic in `backend/monitor.sh` (`NTFY_TOPIC`).
+2. (Recommended) create a free check at **healthchecks.io**, copy its ping URL
+   into `HEALTHCHECK_URL`, and set its period to ~15 min — it emails/pushes you
+   if the laptop ever stops pinging (total outage, which the laptop can't report
+   itself).
+3. Wire it to cron:
+```bash
+chmod +x ~/nemchyo/backend/monitor.sh
+( crontab -l 2>/dev/null; echo "*/5 * * * * /home/$USER/nemchyo/backend/monitor.sh" ) | crontab -
+~/nemchyo/backend/monitor.sh    # run once to confirm (force a test push by setting DISK_THRESHOLD=0)
+```
+
+---
+
+### Security note — media files
+Photos/videos are served by PocketBase at long, unguessable URLs
+(`/api/files/<15-char id>/<name>_<10-char random>.<ext>`), but this build does
+**not** enforce per-user auth on those URLs (a request with no login still gets
+the file — tested). So a URL that leaks *outside* the app is accessible to anyone
+who has it. To shrink that exposure, add a **Cloudflare cache rule** so private
+media is never stored on Cloudflare's edge:
+
+> Cloudflare dashboard → your domain → **Caching → Cache Rules → Create rule**
+> When `URI Path starts with /api/files/` → **Bypass cache**.
+
+True per-user file gating (a token-checked serving layer) is a larger follow-up
+tracked separately — the URLs being unguessable + not edge-cached is the
+pragmatic posture for now.

@@ -1,12 +1,14 @@
 import { Image } from 'expo-image';
 import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { Avatar } from '@/components/avatar';
 import { ImageViewer } from '@/components/image-album';
 import { VideoPlayerModal } from '@/components/video-player';
 import { useAuth } from '@/lib/auth';
 import { fileUrl } from '@/lib/files';
+import { buildLinkUrl, createDeviceLinkFor } from '@/lib/invites';
 import { pb } from '@/lib/pb';
 import { theme } from '@/lib/theme';
 
@@ -49,6 +51,7 @@ export default function ChatInfo() {
   const [tab, setTab] = useState<Tab>('Members');
   const [viewer, setViewer] = useState<{ uris: string[]; index: number } | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<{ name: string; code: string; loading: boolean } | null>(null);
 
   useEffect(() => {
     if (!chat) return;
@@ -100,6 +103,20 @@ export default function ChatInfo() {
   const title = isDirect ? peer?.display_name || 'Chat' : chatRec?.name || 'Chat';
   const myRole = members.find((m) => m.user === user?.id)?.role;
   const canDelete = chatRec && chatRec.type !== 'direct' && chatRec.type !== 'family' && (myRole === 'owner' || myRole === 'admin');
+  // Family admins can mint a sign-in code for a member who lost their device.
+  const canRecover = chatRec && chatRec.type === 'family' && (myRole === 'owner' || myRole === 'admin');
+
+  async function genRecovery(member: any) {
+    const nm = member.expand?.user?.display_name || 'Member';
+    setRecovery({ name: nm, code: '', loading: true });
+    try {
+      const r = await createDeviceLinkFor(member.user);
+      setRecovery({ name: nm, code: r.code, loading: false });
+    } catch (e: any) {
+      setRecovery(null);
+      Alert.alert("Couldn't create a code", e?.message || 'Please try again.');
+    }
+  }
 
   function deleteGroup() {
     Alert.alert('Delete group?', 'This permanently deletes the group and all its messages for everyone.', [
@@ -171,6 +188,11 @@ export default function ChatInfo() {
                   <Text style={styles.rowName}>{item.expand?.user?.display_name || 'Member'}</Text>
                   {item.role !== 'member' ? <Text style={styles.rowSub}>{item.role}</Text> : null}
                 </View>
+                {canRecover && item.user !== user?.id ? (
+                  <Pressable style={styles.recoverBtn} onPress={() => genRecovery(item)}>
+                    <Text style={styles.recoverBtnText}>Sign-in code</Text>
+                  </Pressable>
+                ) : null}
               </View>
             )}
             ListEmptyComponent={<Empty text="No members" />}
@@ -270,6 +292,30 @@ export default function ChatInfo() {
         </Pressable>
       ) : null}
 
+      <Modal visible={!!recovery} transparent animationType="fade" onRequestClose={() => setRecovery(null)}>
+        <Pressable style={styles.recBackdrop} onPress={() => setRecovery(null)}>
+          <Pressable style={styles.recCard} onPress={() => {}}>
+            <Text style={styles.recTitle}>Sign-in code for {recovery?.name}</Text>
+            {recovery?.loading ? (
+              <ActivityIndicator color={theme.primary} style={{ marginVertical: 28 }} />
+            ) : recovery ? (
+              <>
+                <View style={styles.recQr}>
+                  <QRCode value={buildLinkUrl(recovery.code)} size={150} color={theme.text} backgroundColor="#ffffff" />
+                </View>
+                <Text style={styles.recCode}>{recovery.code}</Text>
+                <Text style={styles.recHint}>
+                  On {recovery.name}&apos;s device, open Nemchyo → “Link this one” and enter this code (or scan the QR). Valid for 30 minutes.
+                </Text>
+              </>
+            ) : null}
+            <Pressable style={styles.recDone} onPress={() => setRecovery(null)}>
+              <Text style={styles.recDoneText}>Done</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <ImageViewer uris={viewer?.uris ?? null} index={viewer?.index ?? 0} onClose={() => setViewer(null)} />
       {videoUri ? <VideoPlayerModal uri={videoUri} onClose={() => setVideoUri(null)} /> : null}
     </View>
@@ -304,4 +350,14 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 15, color: theme.textFaint },
   deleteBtn: { margin: 16, paddingVertical: 15, borderRadius: 14, backgroundColor: '#FEE2E2', alignItems: 'center' },
   deleteText: { color: '#DC2626', fontSize: 16, fontWeight: '700' },
+  recoverBtn: { backgroundColor: '#EEF0FF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  recoverBtnText: { color: theme.primary, fontSize: 13, fontWeight: '700' },
+  recBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
+  recCard: { backgroundColor: '#fff', borderRadius: 22, padding: 22, alignItems: 'center', width: '100%', maxWidth: 340 },
+  recTitle: { fontSize: 17, fontWeight: '800', color: theme.text, textAlign: 'center' },
+  recQr: { backgroundColor: '#fff', padding: 12, borderRadius: 14, marginTop: 18, borderWidth: 1, borderColor: theme.border },
+  recCode: { fontSize: 30, fontWeight: '800', letterSpacing: 7, color: theme.text, marginTop: 16, marginLeft: 7 },
+  recHint: { fontSize: 13, color: theme.textMuted, textAlign: 'center', marginTop: 12, lineHeight: 18 },
+  recDone: { marginTop: 18, paddingVertical: 12, paddingHorizontal: 40, borderRadius: 12, backgroundColor: theme.primary },
+  recDoneText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
