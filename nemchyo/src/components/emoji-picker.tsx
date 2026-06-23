@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { theme } from '@/lib/theme';
+import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 import { tenorSearch, type TenorGif } from '@/lib/tenor';
 import { Icon } from './icon';
 
@@ -64,6 +64,8 @@ export function EmojiPicker({
   onPickGif: (url: string) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [mode, setMode] = useState<'emoji' | 'gif'>('emoji');
   const [cat, setCat] = useState(0);
   const current = CATEGORIES[cat];
@@ -121,6 +123,8 @@ export function EmojiPicker({
 }
 
 function GifPanel({ onPickGif }: { onPickGif: (url: string) => void }) {
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [q, setQ] = useState('');
   const [gifs, setGifs] = useState<TenorGif[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,22 +190,22 @@ function GifPanel({ onPickGif }: { onPickGif: (url: string) => void }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { height: 312, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: theme.border },
+const makeStyles = (theme: Colors) => StyleSheet.create({
+  wrap: { height: 312, backgroundColor: theme.sheet, borderTopWidth: 1, borderTopColor: theme.border },
   modeBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4 },
-  modeTab: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16, backgroundColor: '#F2F1F8' },
+  modeTab: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.field },
   modeTabOn: { backgroundColor: theme.primary },
   modeText: { fontSize: 13.5, fontWeight: '700', color: theme.textMuted },
   modeTextOn: { color: '#fff' },
-  gifSearch: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: 8, paddingHorizontal: 12, height: 38, borderRadius: 19, backgroundColor: '#F2F1F8' },
+  gifSearch: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: 8, paddingHorizontal: 12, height: 38, borderRadius: 19, backgroundColor: theme.field },
   gifInput: { flex: 1, fontSize: 15, color: theme.text, paddingVertical: 0 },
   gifCenter: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center' },
-  gifCell: { flex: 1, aspectRatio: 1, margin: 3, borderRadius: 10, overflow: 'hidden', backgroundColor: '#ECEAF6' },
+  gifCell: { flex: 1, aspectRatio: 1, margin: 3, borderRadius: 10, overflow: 'hidden', backgroundColor: theme.chatBg },
   gifImg: { width: '100%', height: '100%' },
   grid: { flex: 1 },
   cell: { width: `${100 / 8}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
   emoji: { fontSize: 27 },
-  tabBar: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: '#F7F6FB', paddingHorizontal: 4 },
+  tabBar: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.bg, paddingHorizontal: 4 },
   tab: { paddingHorizontal: 9, paddingVertical: 9, borderRadius: 8, marginVertical: 4 },
   tabOn: { backgroundColor: theme.primarySoft },
   tabIcon: { fontSize: 20 },

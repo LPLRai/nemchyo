@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
-import { theme } from '@/lib/theme';
+import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 
 function combine(date: Date, time: Date) {
   const d = new Date(date);
@@ -18,6 +18,8 @@ export default function NewEvent() {
   const { date: dateParam, id } = useLocalSearchParams<{ date?: string; id?: string }>();
   const { isValid, user } = useAuth();
   const router = useRouter();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const init = dateParam ? new Date(dateParam) : new Date();
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(init);
@@ -154,7 +156,7 @@ export default function NewEvent() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.bg },
   save: { color: theme.primary, fontSize: 16, fontWeight: '700' },
   titleInput: { backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 18, fontWeight: '600', color: theme.text, borderWidth: 1, borderColor: theme.border, marginBottom: 14 },

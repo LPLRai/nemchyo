@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { redeemDeviceLink } from '@/lib/invites';
-import { theme } from '@/lib/theme';
+import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 import { PRIMARY } from './_layout';
 
 // Accept a raw code or a full link URL (pull ?code=... out of it).
@@ -24,6 +24,8 @@ function extractCode(input: string): string {
 export default function LinkRedeem() {
   const params = useLocalSearchParams<{ code?: string }>();
   const router = useRouter();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [code, setCode] = useState((params.code ?? '') as string);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -93,7 +95,7 @@ export default function LinkRedeem() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: theme.bg },
   card: { width: '100%', maxWidth: 380, gap: 8 },
   logo: { fontSize: 40, fontWeight: '800', color: PRIMARY, textAlign: 'center' },

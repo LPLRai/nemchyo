@@ -4,10 +4,12 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import QRCode from 'react-native-qrcode-svg';
 import { buildLinkUrl, createDeviceLink } from '@/lib/invites';
 import { useAuth } from '@/lib/auth';
-import { shadow, theme } from '@/lib/theme';
+import { shadow, useColors, useThemedStyles, type Colors } from '@/lib/theme';
 
 export default function LinkDevice() {
   const { isValid } = useAuth();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [code, setCode] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -75,7 +77,7 @@ export default function LinkDevice() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.bg, alignItems: 'center', padding: 24 },
   title: { fontSize: 22, fontWeight: '800', color: theme.text, marginTop: 8 },
   sub: { fontSize: 14.5, color: theme.textMuted, textAlign: 'center', marginTop: 8, lineHeight: 20, maxWidth: 340 },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { pb } from '@/lib/pb';
-import { theme } from '@/lib/theme';
+import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 
 function timeLeft(iso?: string): string {
   if (!iso) return '';
@@ -16,6 +16,8 @@ function timeLeft(iso?: string): string {
 // In-chat poll card: select an answer → Vote → live results, with a peek
 // ("Show results") and per-poll close time.
 export function PollMessage({ messageId, userId }: { messageId: string; userId?: string }) {
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [poll, setPoll] = useState<any>(null);
   const [options, setOptions] = useState<any[]>([]);
   const [votes, setVotes] = useState<any[]>([]);
@@ -159,8 +161,8 @@ export function PollMessage({ messageId, userId }: { messageId: string; userId?:
   );
 }
 
-const styles = StyleSheet.create({
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, ...{ shadowColor: '#2A1F6E', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 } },
+const makeStyles = (theme: Colors) => StyleSheet.create({
+  card: { backgroundColor: theme.card, borderRadius: 16, padding: 16, ...{ shadowColor: '#2A1F6E', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 } },
   title: { fontSize: 18, fontWeight: '800', color: theme.text },
   subtitle: { fontSize: 13.5, color: theme.textMuted, marginTop: 3, marginBottom: 12 },
   optSelect: {

@@ -18,11 +18,15 @@ import { PB_URL } from '@/lib/config';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
 import { registerWebPush, webPushPermission } from '@/lib/webpush';
+import { useColors, useTheme, useThemedStyles, type Colors } from '@/lib/theme';
 import { PRIMARY } from './_layout';
 
 export default function Profile() {
   const { isValid, user } = useAuth();
   const router = useRouter();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
+  const { scheme, toggle } = useTheme();
   const [name, setName] = useState<string>(user?.display_name || '');
   const [about, setAbout] = useState<string>(user?.about || '');
   const [saving, setSaving] = useState(false);
@@ -126,7 +130,7 @@ export default function Profile() {
         value={name}
         onChangeText={setName}
         placeholder="Your name"
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor={theme.textFaint}
         maxLength={100}
       />
 
@@ -136,13 +140,20 @@ export default function Profile() {
         value={about}
         onChangeText={setAbout}
         placeholder="A short line about you (optional)"
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor={theme.textFaint}
         multiline
         maxLength={200}
       />
 
       <Pressable style={[styles.save, saving && { opacity: 0.6 }]} onPress={save} disabled={saving}>
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save</Text>}
+      </Pressable>
+
+      <Pressable style={styles.toggleRow} onPress={toggle}>
+        <Text style={styles.toggleLabel}>{scheme === 'dark' ? '🌙  Dark mode' : '☀️  Light mode'}</Text>
+        <View style={[styles.track, scheme === 'dark' && styles.trackOn]}>
+          <View style={[styles.knob, scheme === 'dark' && styles.knobOn]} />
+        </View>
       </Pressable>
 
       {notifPerm === 'default' ? (
@@ -163,7 +174,7 @@ export default function Profile() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   container: { padding: 24, alignItems: 'center', gap: 8 },
   avatarWrap: { marginTop: 8 },
   editBadge: {
@@ -177,21 +188,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#F3F4F6',
+    borderColor: theme.bg,
   },
   editBadgeText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  hint: { color: '#9CA3AF', fontSize: 13, marginBottom: 8 },
-  label: { alignSelf: 'flex-start', color: '#6B7280', fontSize: 13, fontWeight: '600', marginTop: 8 },
+  hint: { color: theme.textFaint, fontSize: 13, marginBottom: 8 },
+  label: { alignSelf: 'flex-start', color: theme.textMuted, fontSize: 13, fontWeight: '600', marginTop: 8 },
   input: {
     alignSelf: 'stretch',
-    backgroundColor: '#fff',
+    backgroundColor: theme.card,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#111827',
+    color: theme.text,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
   },
   multiline: { minHeight: 70, textAlignVertical: 'top' },
   save: {
@@ -203,9 +214,15 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   saveText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  linkBtn: { alignSelf: 'stretch', backgroundColor: '#EEF0FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  toggleRow: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, marginTop: 12 },
+  toggleLabel: { color: theme.text, fontSize: 15.5, fontWeight: '600' },
+  track: { width: 48, height: 28, borderRadius: 14, backgroundColor: theme.border, padding: 3, justifyContent: 'center' },
+  trackOn: { backgroundColor: PRIMARY },
+  knob: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
+  knobOn: { alignSelf: 'flex-end' },
+  linkBtn: { alignSelf: 'stretch', backgroundColor: theme.primarySoft, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
   linkBtnText: { color: PRIMARY, fontWeight: '700', fontSize: 15.5 },
-  linkHint: { color: '#9CA3AF', fontSize: 12.5, textAlign: 'center', marginTop: 6 },
-  notifOn: { color: '#16A34A', fontSize: 13.5, fontWeight: '600', textAlign: 'center', marginTop: 12 },
-  email: { color: '#9CA3AF', fontSize: 12, marginTop: 16 },
+  linkHint: { color: theme.textFaint, fontSize: 12.5, textAlign: 'center', marginTop: 6 },
+  notifOn: { color: theme.online, fontSize: 13.5, fontWeight: '600', textAlign: 'center', marginTop: 12 },
+  email: { color: theme.textFaint, fontSize: 12, marginTop: 16 },
 });

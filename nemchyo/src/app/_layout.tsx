@@ -3,11 +3,14 @@ import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
 import { useEffect } from 'react';
 import { IncomingCallWatcher } from '@/components/incoming-call-watcher';
-import { theme } from '@/lib/theme';
+import { ThemeProvider, theme, useColors, useTheme } from '@/lib/theme';
 
 export const PRIMARY = theme.primary;
 
-export default function RootLayout() {
+function Shell() {
+  const c = useColors();
+  const { scheme } = useTheme();
+
   // Auto-apply over-the-air updates on launch, so fixes land on the next open
   // without needing a manual double-relaunch.
   useEffect(() => {
@@ -29,11 +32,11 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: theme.primaryDark },
+          headerStyle: { backgroundColor: c.primaryDark },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: '800', fontSize: 18 },
           headerShadowVisible: false,
-          contentStyle: { backgroundColor: theme.bg },
+          contentStyle: { backgroundColor: c.bg },
         }}>
         <Stack.Screen name="index" options={{ title: 'Nemchyo' }} />
         <Stack.Screen name="join" options={{ title: 'Join Nemchyo' }} />
@@ -52,5 +55,13 @@ export default function RootLayout() {
       </Stack>
       <IncomingCallWatcher />
     </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <Shell />
+    </ThemeProvider>
   );
 }

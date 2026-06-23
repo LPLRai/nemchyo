@@ -12,11 +12,13 @@ import {
 } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
-import { shadow, theme } from '@/lib/theme';
+import { shadow, useColors, useThemedStyles, type Colors } from '@/lib/theme';
 
 export default function Login() {
   const { isValid } = useAuth();
   const router = useRouter();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -98,7 +100,7 @@ export default function Login() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: theme.bg },
   hero: { alignItems: 'center', marginBottom: 28 },
   logoMark: {

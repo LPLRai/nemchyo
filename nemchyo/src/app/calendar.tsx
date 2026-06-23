@@ -4,7 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { Avatar } from '@/components/avatar';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
-import { theme } from '@/lib/theme';
+import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -31,6 +31,8 @@ function monthCells(year: number, month: number): (number | null)[] {
 export default function Calendar() {
   const { isValid, user } = useAuth();
   const router = useRouter();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [events, setEvents] = useState<any[]>([]);
   const [rsvps, setRsvps] = useState<any[]>([]);
   const [cursor, setCursor] = useState(new Date());
@@ -243,7 +245,7 @@ export default function Calendar() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.bg },
   calCard: { backgroundColor: '#fff', borderRadius: 20, marginHorizontal: 12, marginTop: 12, paddingBottom: 12, shadowColor: '#2A1F6E', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
   monthBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10 },

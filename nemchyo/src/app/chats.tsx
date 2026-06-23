@@ -8,11 +8,13 @@ import { isMuted } from '@/lib/mute';
 import { pb } from '@/lib/pb';
 import { registerForPush } from '@/lib/push';
 import { registerWebPush } from '@/lib/webpush';
-import { shadow, theme } from '@/lib/theme';
+import { shadow, useColors, useThemedStyles, type Colors } from '@/lib/theme';
 
 export default function Chats() {
   const { isValid, user } = useAuth();
   const router = useRouter();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [chats, setChats] = useState<any[]>([]);
   const [muteMap, setMuteMap] = useState<Record<string, string>>({});
   const [membersMap, setMembersMap] = useState<Record<string, any[]>>({});
@@ -195,7 +197,7 @@ function formatTime(iso: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 24 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: theme.text },
   emptyText: { fontSize: 14, color: theme.textFaint, textAlign: 'center' },

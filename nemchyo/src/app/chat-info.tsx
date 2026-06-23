@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { fileUrl } from '@/lib/files';
 import { buildLinkUrl, createDeviceLinkFor } from '@/lib/invites';
 import { pb } from '@/lib/pb';
-import { theme } from '@/lib/theme';
+import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 
 const TABS = ['Members', 'Media', 'Pins', 'Links', 'Files'] as const;
 type Tab = (typeof TABS)[number];
@@ -31,6 +31,7 @@ function previewMsg(m: any): string {
 }
 
 function Empty({ text }: { text: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.empty}>
       <Text style={styles.emptyText}>{text}</Text>
@@ -42,6 +43,8 @@ export default function ChatInfo() {
   const { chat } = useLocalSearchParams<{ chat: string }>();
   const { isValid, user } = useAuth();
   const router = useRouter();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [chatRec, setChatRec] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [media, setMedia] = useState<any[]>([]);
@@ -322,7 +325,7 @@ export default function ChatInfo() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.bg },
   head: { alignItems: 'center', paddingVertical: 18, gap: 6 },
   name: { fontSize: 22, fontWeight: '800', color: theme.text, marginTop: 6 },

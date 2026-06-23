@@ -12,11 +12,14 @@ import {
 import { Avatar } from '@/components/avatar';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
+import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 import { PRIMARY } from './_layout';
 
 export default function NewChat() {
   const { isValid, user } = useAuth();
   const router = useRouter();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [people, setPeople] = useState<any[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [groupName, setGroupName] = useState('');
@@ -105,7 +108,7 @@ export default function NewChat() {
             value={groupName}
             onChangeText={setGroupName}
             placeholder={announce ? 'Channel name' : 'Group name'}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={theme.textFaint}
             maxLength={60}
           />
           <Pressable style={styles.announceRow} onPress={() => setAnnounce((a) => !a)}>
@@ -164,31 +167,31 @@ export default function NewChat() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 24 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#374151' },
-  emptyText: { fontSize: 14, color: '#9CA3AF', textAlign: 'center' },
-  groupNameWrap: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: theme.text },
+  emptyText: { fontSize: 14, color: theme.textFaint, textAlign: 'center' },
+  groupNameWrap: { padding: 12, backgroundColor: theme.card, borderBottomWidth: 1, borderBottomColor: theme.border },
   groupNameInput: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.field,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#111827',
+    color: theme.text,
   },
   announceRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 12, paddingHorizontal: 2 },
-  announceTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  announceSub: { fontSize: 12.5, color: '#6B7280', marginTop: 1 },
-  announceBox: { fontSize: 24, color: '#9CA3AF' },
+  announceTitle: { fontSize: 15, fontWeight: '700', color: theme.text },
+  announceSub: { fontSize: 12.5, color: theme.textMuted, marginTop: 1 },
+  announceBox: { fontSize: 24, color: theme.textFaint },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 11 },
-  name: { flex: 1, fontSize: 16, fontWeight: '600', color: '#111827' },
+  name: { flex: 1, fontSize: 16, fontWeight: '600', color: theme.text },
   check: {
     width: 26,
     height: 26,
     borderRadius: 13,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: theme.border,
     alignItems: 'center',
     justifyContent: 'center',
   },

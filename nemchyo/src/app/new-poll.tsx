@@ -4,7 +4,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
-import { theme } from '@/lib/theme';
+import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 
 const DURATIONS = [
   { label: '1 hour', h: 1 },
@@ -19,6 +19,8 @@ export default function NewPoll() {
   const { chat } = useLocalSearchParams<{ chat: string }>();
   const { isValid, user } = useAuth();
   const router = useRouter();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [question, setQuestion] = useState('');
   const [answers, setAnswers] = useState<string[]>(['', '']);
@@ -115,7 +117,7 @@ export default function NewPoll() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.bg },
   post: { color: theme.primary, fontSize: 16, fontWeight: '700' },
   label: { fontSize: 14, fontWeight: '700', color: theme.textMuted, marginBottom: 8 },

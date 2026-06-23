@@ -38,7 +38,7 @@ import { fileUrl } from '@/lib/files';
 import { isMuted, MUTE_OPTIONS, muteLabel, muteUntilValue } from '@/lib/mute';
 import { pb } from '@/lib/pb';
 import { setActiveChat } from '@/lib/push';
-import { shadow, theme } from '@/lib/theme';
+import { shadow, useColors, useThemedStyles, type Colors } from '@/lib/theme';
 import { callsSupported } from '@/lib/webrtc';
 import { PRIMARY } from '../_layout';
 
@@ -150,6 +150,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 // future. Self-contained ticker so it expires on its own without re-rendering
 // the whole message list.
 function TypingIndicator({ members, meId }: { members: any[]; meId?: string }) {
+  const styles = useThemedStyles(makeStyles);
   const [, setNow] = useState(0);
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1500);
@@ -176,6 +177,8 @@ export default function Conversation() {
   const { isValid, user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const theme = useColors();
+  const styles = useThemedStyles(makeStyles);
   const [messages, setMessages] = useState<any[]>([]);
   const [reactions, setReactions] = useState<Record<string, any[]>>({});
   const [text, setText] = useState('');
@@ -1520,14 +1523,14 @@ export default function Conversation() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Colors) => StyleSheet.create({
   mutedBanner: { backgroundColor: '#FEF3C7', paddingVertical: 6, paddingHorizontal: 14, alignItems: 'center' },
   mutedText: { color: '#92400E', fontSize: 12, fontWeight: '600' },
   rowSelected: { backgroundColor: 'rgba(99,89,242,0.12)', marginVertical: -3, paddingVertical: 3 },
   reactFloatWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 },
-  reactFloat: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: '#fff', borderRadius: 30, paddingVertical: 8, paddingHorizontal: 8, ...shadow.lg },
+  reactFloat: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: theme.sheet, borderRadius: 30, paddingVertical: 8, paddingHorizontal: 8, ...shadow.lg },
   reactFloatBtn: { paddingHorizontal: 4, paddingVertical: 2 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.card, paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
   searchX: { fontSize: 18, color: theme.textMuted, fontWeight: '700' },
   searchInput: { flex: 1, fontSize: 16, color: theme.text, paddingVertical: 6 },
   searchCount: { fontSize: 13, color: theme.textMuted, fontWeight: '600' },
@@ -1542,7 +1545,7 @@ const styles = StyleSheet.create({
   selEmojiRow: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingBottom: 10, backgroundColor: theme.primarySoft },
   list: { flex: 1, backgroundColor: theme.chatBg },
   olderLoading: { paddingVertical: 14, alignItems: 'center' },
-  jumpBtn: { position: 'absolute', right: 14, bottom: 88, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border, ...shadow.lg },
+  jumpBtn: { position: 'absolute', right: 14, bottom: 88, width: 44, height: 44, borderRadius: 22, backgroundColor: theme.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border, ...shadow.lg },
   jumpDot: { position: 'absolute', top: 5, right: 7, width: 10, height: 10, borderRadius: 5, backgroundColor: theme.primary, borderWidth: 1.5, borderColor: '#fff' },
   row: { flexDirection: 'row' },
   left: { justifyContent: 'flex-start' },
@@ -1553,7 +1556,7 @@ const styles = StyleSheet.create({
   theirs: { backgroundColor: theme.bubbleTheirs, borderBottomLeftRadius: 6 },
   sender: { fontSize: 12.5, fontWeight: '700', color: theme.primary, marginBottom: 2 },
   body: { fontSize: 15.5, color: theme.text, lineHeight: 21 },
-  caption: { fontSize: 14, color: '#111827', lineHeight: 19, paddingHorizontal: 8, paddingTop: 6 },
+  caption: { fontSize: 14, color: theme.text, lineHeight: 19, paddingHorizontal: 8, paddingTop: 6 },
   image: { width: 220, height: 220, borderRadius: 12, backgroundColor: '#E5E7EB' },
   fileCard: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 180, maxWidth: 240 },
   fileIcon: { fontSize: 26 },
@@ -1570,40 +1573,40 @@ const styles = StyleSheet.create({
   quoteName: { fontSize: 12, fontWeight: '700', color: PRIMARY },
   quoteText: { fontSize: 12, color: '#6B7280' },
   reactRow: { flexDirection: 'row', gap: 4, marginTop: 4 },
-  reactChip: { backgroundColor: '#fff', borderWidth: 1, borderColor: theme.border, borderRadius: 14, paddingHorizontal: 9, paddingVertical: 3, ...shadow.sm },
+  reactChip: { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 14, paddingHorizontal: 9, paddingVertical: 3, ...shadow.sm },
   reactChipMine: { backgroundColor: theme.primarySoft, borderColor: theme.primary },
   reactChipText: { fontSize: 13 },
   uploadBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
   uploadText: { color: '#6B7280', fontSize: 13 },
   composerBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.primarySoft, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.border },
   composerLine: { width: 3, height: 32, backgroundColor: PRIMARY, borderRadius: 2 },
-  composerTitle: { fontSize: 12, fontWeight: '700', color: '#374151' },
-  composerPreview: { fontSize: 12, color: '#6B7280' },
-  composerX: { fontSize: 16, color: '#6B7280', paddingHorizontal: 4 },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 10, paddingVertical: 9, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: theme.border },
+  composerTitle: { fontSize: 12, fontWeight: '700', color: theme.text },
+  composerPreview: { fontSize: 12, color: theme.textMuted },
+  composerX: { fontSize: 16, color: theme.textMuted, paddingHorizontal: 4 },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 10, paddingVertical: 9, backgroundColor: theme.card, borderTopWidth: 1, borderTopColor: theme.border },
   attachBtn: { paddingHorizontal: 3, paddingVertical: 10 },
   attachIcon: { fontSize: 22 },
-  input: { flex: 1, maxHeight: 120, backgroundColor: '#F0F0F7', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11, fontSize: 15.5, color: theme.text },
+  input: { flex: 1, maxHeight: 120, backgroundColor: theme.inputBg, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11, fontSize: 15.5, color: theme.text },
   sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center', ...shadow.sm },
   sendIcon: { color: '#fff', fontWeight: '700', fontSize: 18, marginLeft: 2 },
   micBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#25D366', alignItems: 'center', justifyContent: 'center', ...shadow.sm },
   micIcon: { fontSize: 22 },
-  announceNotice: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 14, paddingHorizontal: 16, alignItems: 'center' },
+  announceNotice: { backgroundColor: theme.card, borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 14, paddingHorizontal: 16, alignItems: 'center' },
   announceNoticeText: { color: theme.textMuted, fontSize: 14, fontWeight: '600', paddingBottom: 6 },
-  recPill: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEE2E2', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12 },
+  recPill: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.dangerSoft, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12 },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#DC2626' },
-  recText: { color: '#991B1B', fontSize: 14, fontWeight: '600' },
+  recText: { color: theme.danger, fontSize: 14, fontWeight: '600' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 12, paddingBottom: 24 },
-  sheetTitle: { fontSize: 16, fontWeight: '700', color: '#111827', textAlign: 'center', paddingVertical: 10 },
+  sheet: { backgroundColor: theme.sheet, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 12, paddingBottom: 24 },
+  sheetTitle: { fontSize: 16, fontWeight: '700', color: theme.text, textAlign: 'center', paddingVertical: 10 },
   sheetRow: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10 },
-  sheetRowText: { fontSize: 16, color: '#111827', textAlign: 'center' },
+  sheetRowText: { fontSize: 16, color: theme.text, textAlign: 'center' },
   sheetItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 12 },
   sheetItemIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  sheetItemText: { fontSize: 16, color: '#111827', fontWeight: '600' },
+  sheetItemText: { fontSize: 16, color: theme.text, fontWeight: '600' },
   sheetCancel: { paddingVertical: 14, marginTop: 6 },
-  sheetCancelText: { fontSize: 16, color: '#6B7280', textAlign: 'center', fontWeight: '600' },
+  sheetCancelText: { fontSize: 16, color: theme.textMuted, textAlign: 'center', fontWeight: '600' },
   pollRow: { paddingVertical: 2 },
-  emojiRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  emojiRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: theme.border },
   emojiBtn: { padding: 6 },
 });
