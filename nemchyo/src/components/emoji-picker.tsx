@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, useThemedStyles, type Colors } from '@/lib/theme';
 import { tenorSearch, type TenorGif } from '@/lib/tenor';
@@ -85,20 +85,22 @@ export function EmojiPicker({
         <GifPanel onPickGif={onPickGif} />
       ) : (
       <>
-      <FlatList
+      <ScrollView
         key={current.key}
-        data={current.emojis}
-        keyExtractor={(e, i) => current.key + i}
-        numColumns={8}
         style={styles.grid}
         keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <Pressable style={styles.cell} onPress={() => onPick(item)} android_ripple={{ color: '#00000010', borderless: true }}>
+        contentContainerStyle={styles.gridContent}>
+        {current.emojis.map((item, i) => (
+          <Pressable
+            key={current.key + i}
+            style={styles.cell}
+            onPress={() => onPick(item)}
+            android_ripple={{ color: '#00000010', borderless: true }}>
             <Text style={styles.emoji}>{item}</Text>
           </Pressable>
-        )}
-      />
+        ))}
+      </ScrollView>
       <View style={styles.tabBar}>
         <FlatList
           horizontal
@@ -165,26 +167,22 @@ function GifPanel({ onPickGif }: { onPickGif: (url: string) => void }) {
         <View style={styles.gifCenter}>
           <ActivityIndicator color={theme.primary} />
         </View>
+      ) : gifs.length === 0 ? (
+        <View style={styles.gifCenter}>
+          <Text style={{ color: theme.textFaint }}>No GIFs found</Text>
+        </View>
       ) : (
-        <FlatList
-          key="gif2"
-          data={gifs}
-          numColumns={2}
-          keyExtractor={(g) => g.id}
+        <ScrollView
+          style={{ flex: 1 }}
           keyboardShouldPersistTaps="always"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ padding: 5 }}
-          renderItem={({ item }) => (
-            <Pressable style={styles.gifCell} onPress={() => onPickGif(item.gif)}>
+          contentContainerStyle={styles.gifWrap}>
+          {gifs.map((item) => (
+            <Pressable key={item.id} style={styles.gifCell} onPress={() => onPickGif(item.gif)}>
               <Image source={{ uri: item.preview }} style={styles.gifImg} contentFit="cover" />
             </Pressable>
-          )}
-          ListEmptyComponent={
-            <View style={styles.gifCenter}>
-              <Text style={{ color: theme.textFaint }}>No GIFs found</Text>
-            </View>
-          }
-        />
+          ))}
+        </ScrollView>
       )}
     </View>
   );
@@ -200,11 +198,13 @@ const makeStyles = (theme: Colors) => StyleSheet.create({
   gifSearch: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: 8, paddingHorizontal: 12, height: 38, borderRadius: 19, backgroundColor: theme.field },
   gifInput: { flex: 1, fontSize: 15, color: theme.text, paddingVertical: 0 },
   gifCenter: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center' },
-  gifCell: { flex: 1, aspectRatio: 1, margin: 3, borderRadius: 10, overflow: 'hidden', backgroundColor: theme.chatBg },
+  gifWrap: { flexDirection: 'row', flexWrap: 'wrap', padding: 4 },
+  gifCell: { width: 96, height: 96, margin: 3, borderRadius: 10, overflow: 'hidden', backgroundColor: theme.chatBg },
   gifImg: { width: '100%', height: '100%' },
   grid: { flex: 1 },
-  cell: { width: `${100 / 8}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
-  emoji: { fontSize: 27 },
+  gridContent: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 6, paddingTop: 2 },
+  cell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  emoji: { fontSize: 26 },
   tabBar: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.bg, paddingHorizontal: 4 },
   tab: { paddingHorizontal: 9, paddingVertical: 9, borderRadius: 8, marginVertical: 4 },
   tabOn: { backgroundColor: theme.primarySoft },
