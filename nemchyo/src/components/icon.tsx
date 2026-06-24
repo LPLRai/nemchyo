@@ -19,7 +19,11 @@ export type IconName =
   | 'image'
   | 'document'
   | 'poll'
-  | 'chevron-down';
+  | 'chevron-down'
+  | 'phone-off'
+  | 'mic-off'
+  | 'video-off'
+  | 'switch-camera';
 
 // Hand-drawn line icons via react-native-svg (already native in the build, so
 // these ship over-the-air with no new dependency and no icon-font to load).
@@ -180,6 +184,37 @@ export function Icon({ name, size = 24, color = '#54656F' }: { name: IconName; s
       return (
         <Svg {...box}>
           <Path d="M6 9l6 6 6-6" {...s} />
+        </Svg>
+      );
+    case 'phone-off':
+      return (
+        <Svg {...box}>
+          <Path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" {...s} />
+          <Line x1={23} y1={1} x2={1} y2={23} {...s} />
+        </Svg>
+      );
+    case 'mic-off':
+      return (
+        <Svg {...box}>
+          <Line x1={1} y1={1} x2={23} y2={23} {...s} />
+          <Path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V5a3 3 0 0 0-5.94-.6" {...s} />
+          <Path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" {...s} />
+          <Line x1={12} y1={19} x2={12} y2={22} {...s} />
+          <Line x1={8} y1={22} x2={16} y2={22} {...s} />
+        </Svg>
+      );
+    case 'video-off':
+      return (
+        <Svg {...box}>
+          <Path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10" {...s} />
+          <Line x1={1} y1={1} x2={23} y2={23} {...s} />
+        </Svg>
+      );
+    case 'switch-camera':
+      return (
+        <Svg {...box}>
+          <Path d="M23 4v6h-6" {...s} />
+          <Path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" {...s} />
         </Svg>
       );
   }

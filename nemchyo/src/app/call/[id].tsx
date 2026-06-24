@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CallVideo } from '@/components/call-video';
+import { Icon } from '@/components/icon';
 import { useAuth } from '@/lib/auth';
 import { pb } from '@/lib/pb';
 import { CallSession, callsSupported } from '@/lib/webrtc';
@@ -108,7 +109,7 @@ export default function CallScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <Text style={styles.msg}>Calls are available in the Nemchyo app.</Text>
         <Pressable style={[styles.round, styles.decline]} onPress={close}>
-          <Text style={styles.icon}>✕</Text>
+          <Icon name="phone-off" size={26} color="#fff" />
         </Pressable>
       </View>
     );
@@ -150,29 +151,29 @@ export default function CallScreen() {
         {phase === 'incoming' ? (
           <>
             <Pressable style={[styles.round, styles.decline]} onPress={decline}>
-              <Text style={styles.icon}>✕</Text>
+              <Icon name="phone-off" size={28} color="#fff" />
             </Pressable>
             <Pressable style={[styles.round, styles.accept]} onPress={accept}>
-              <Text style={styles.icon}>✓</Text>
+              <Icon name="phone" size={28} color="#fff" />
             </Pressable>
           </>
         ) : phase === 'ended' ? null : (
           <>
             <Pressable style={[styles.round, muted && styles.activeCtl]} onPress={() => setMuted(sessionRef.current?.toggleMute() ?? false)}>
-              <Text style={styles.icon}>{muted ? '🔇' : '🎙️'}</Text>
+              <Icon name={muted ? 'mic-off' : 'mic'} size={26} color="#fff" />
             </Pressable>
             {isVideo ? (
               <Pressable style={[styles.round, camOff && styles.activeCtl]} onPress={() => setCamOff(sessionRef.current?.toggleCamera() ?? false)}>
-                <Text style={styles.icon}>{camOff ? '🚫' : '🎥'}</Text>
+                <Icon name={camOff ? 'video-off' : 'video'} size={26} color="#fff" />
               </Pressable>
             ) : null}
             {isVideo ? (
               <Pressable style={styles.round} onPress={() => sessionRef.current?.switchCamera()}>
-                <Text style={styles.icon}>🔄</Text>
+                <Icon name="switch-camera" size={24} color="#fff" />
               </Pressable>
             ) : null}
             <Pressable style={[styles.round, styles.decline]} onPress={hangup}>
-              <Text style={styles.icon}>📞</Text>
+              <Icon name="phone-off" size={26} color="#fff" />
             </Pressable>
           </>
         )}
