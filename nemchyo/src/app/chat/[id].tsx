@@ -63,6 +63,11 @@ function guessMime(name: string, fallback: string): string {
   return map[ext] || fallback;
 }
 
+function fileExt(name?: string): string {
+  const m = (name || '').match(/\.([a-zA-Z0-9]+)$/);
+  return m ? m[1].toUpperCase() : 'File';
+}
+
 // Wraps every occurrence of `query` in the text with a highlight style.
 function HighlightText({ text, query, style, hl }: { text: string; query: string; style: any; hl: any }) {
   const q = query.trim();
@@ -665,6 +670,8 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
     exitSelection();
     try {
       await pb.collection('pins').create({ chat: id, message: message.id, pinned_by: user.id });
+      // a system notice in the timeline, like WhatsApp/Discord
+      await pb.collection('messages').create({ chat: id, sender: user.id, type: 'system', body: 'pinned' }).catch(() => {});
     } catch (e: any) {
       Alert.alert("Couldn't pin", e?.message || 'Please try again.');
     }
@@ -753,6 +760,7 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
             sender: String(user.id),
             type: m.type,
             file_name: m.file_name || 'file',
+            forwarded: 'true',
           };
           if (m.body) params.body = m.body;
           await FileSystem.uploadAsync(`${PB_URL}/api/collections/messages/records`, dl.uri, {
@@ -763,7 +771,7 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
             headers: pb.authStore.token ? { Authorization: pb.authStore.token } : {},
           });
         } else if (m.body) {
-          await pb.collection('messages').create({ chat: chatId, sender: user.id, type: 'text', body: m.body });
+          await pb.collection('messages').create({ chat: chatId, sender: user.id, type: 'text', body: m.body, forwarded: true });
         }
       } catch {}
     }
@@ -1037,13 +1045,13 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
     setFlashId(null);
   }
 
-  const openChatInfo = () => {
-    if (Platform.OS === 'web') openDetails(id);
-    else router.push({ pathname: '/chat-info', params: { chat: id } });
+  const openChatInfo = (tab?: string) => {
+    if (Platform.OS === 'web') openDetails(id, tab);
+    else router.push({ pathname: '/chat-info', params: { chat: id, ...(tab ? { tab } : {}) } });
   };
   const headerTitleEl = (
     <Pressable
-      onPress={openChatInfo}
+      onPress={() => openChatInfo()}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}
       hitSlop={6}>
       <Avatar user={isDirectChat ? headerPeer : undefined} name={headerName} size={32} />
@@ -1222,6 +1230,23 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
               </Pressable>
             );
           }
+          if (item.type === 'system') {
+            const who = item.expand?.sender?.display_name || (item.sender === user?.id ? 'You' : 'Someone');
+            return (
+              <Pressable style={styles.systemRow} onPress={() => openChatInfo('Pins')}>
+                <View style={styles.systemLine}>
+                  <Icon name="pin" size={14} color={theme.textMuted} />
+                  <Text style={styles.systemText}>
+                    <Text style={{ fontWeight: '700' }}>{who}</Text> pinned a message.{' '}
+                    <Text style={styles.systemLink}>See all pinned messages</Text>
+                  </Text>
+                </View>
+                <Text style={styles.systemTime}>
+                  {new Date(item.created).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </Text>
+              </Pressable>
+            );
+          }
           const mine = item.sender === user?.id;
           const name = item.expand?.sender?.display_name || (mine ? 'You' : 'Member');
           const deleted = item.deleted_for_everyone;
@@ -1259,6 +1284,13 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
                     </View>
                   ) : null}
 
+                  {item.forwarded && !deleted ? (
+                    <View style={styles.fwdRow}>
+                      <Icon name="forward" size={12} color={mine ? '#C7D2FE' : theme.textFaint} />
+                      <Text style={[styles.fwdText, mine && { color: '#C7D2FE' }]}>Forwarded</Text>
+                    </View>
+                  ) : null}
+
                   {deleted ? (
                     <Text style={[styles.deleted, mine && { color: '#E0E7FF' }]}>🚫 This message was deleted</Text>
                   ) : isImage ? (
@@ -1273,18 +1305,22 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
                     </View>
                   ) : isVideo ? (
                     <Pressable style={styles.fileCard} onLongPress={(e) => onMsgLongPress(item, e)} delayLongPress={260} onPress={() => (selectionMode ? toggleSelect(item) : setVideoUri(fileUrl(item, item.file)))}>
-                      <Text style={styles.fileIcon}>🎬</Text>
+                      <View style={[styles.fileIconBox, { backgroundColor: mine ? 'rgba(255,255,255,0.18)' : theme.primarySoft }]}>
+                        <Icon name="video" size={22} color={mine ? '#fff' : theme.primary} />
+                      </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>{item.file_name || 'Video'}</Text>
-                        <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>Tap to play</Text>
+                        <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>Video · Tap to play</Text>
                       </View>
                     </Pressable>
                   ) : isFile ? (
                     <Pressable style={styles.fileCard} onLongPress={(e) => onMsgLongPress(item, e)} delayLongPress={260} onPress={() => (selectionMode ? toggleSelect(item) : Linking.openURL(fileUrl(item, item.file)))}>
-                      <Text style={styles.fileIcon}>📄</Text>
+                      <View style={[styles.fileIconBox, { backgroundColor: mine ? 'rgba(255,255,255,0.18)' : theme.primarySoft }]}>
+                        <Icon name="document" size={22} color={mine ? '#fff' : theme.primary} />
+                      </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.fileName, mine && { color: '#fff' }]} numberOfLines={1}>{item.file_name || 'Document'}</Text>
-                        <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>Tap to open</Text>
+                        <Text style={[styles.fileHint, mine && { color: '#E0E7FF' }]}>{fileExt(item.file_name)} · Tap to open</Text>
                       </View>
                     </Pressable>
                   ) : (
@@ -1475,8 +1511,9 @@ export default function Conversation({ chatId, embedded }: { chatId?: string; em
           <Pressable style={styles.sheet} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Mute notifications</Text>
             {muted ? (
-              <Pressable style={styles.sheetRow} onPress={() => setMute(null)}>
-                <Text style={[styles.sheetRowText, { color: PRIMARY, fontWeight: '700' }]}>🔔 Turn on notifications</Text>
+              <Pressable style={[styles.sheetRow, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]} onPress={() => setMute(null)}>
+                <Icon name="bell" size={18} color={PRIMARY} />
+                <Text style={[styles.sheetRowText, { color: PRIMARY, fontWeight: '700' }]}>Turn on notifications</Text>
               </Pressable>
             ) : (
               MUTE_OPTIONS.map((o) => (
@@ -1585,8 +1622,16 @@ const makeStyles = (theme: Colors) => StyleSheet.create({
   body: { fontSize: 15.5, color: theme.text, lineHeight: 21 },
   caption: { fontSize: 14, color: theme.text, lineHeight: 19, paddingHorizontal: 8, paddingTop: 6 },
   image: { width: 224, height: 224, borderRadius: 16, backgroundColor: theme.chatBg },
-  fileCard: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 180, maxWidth: 240 },
+  fileCard: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 200, maxWidth: 260 },
   fileIcon: { fontSize: 26 },
+  fileIconBox: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  fwdRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 },
+  fwdText: { fontSize: 12, fontStyle: 'italic', color: theme.textFaint },
+  systemRow: { alignSelf: 'center', maxWidth: '88%', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14, gap: 3 },
+  systemLine: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  systemText: { flexShrink: 1, fontSize: 13, color: theme.textMuted, textAlign: 'center', lineHeight: 18 },
+  systemLink: { color: theme.primary, fontWeight: '700' },
+  systemTime: { fontSize: 11, color: theme.textFaint },
   fileName: { fontSize: 15, fontWeight: '600', color: theme.text },
   fileHint: { fontSize: 12, color: theme.textMuted, marginTop: 1 },
   deleted: { fontSize: 14, fontStyle: 'italic', color: theme.textMuted },

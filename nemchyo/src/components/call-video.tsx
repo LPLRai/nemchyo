@@ -8,7 +8,10 @@ export function CallVideo({ stream, mirror, style }: { stream?: any; mirror?: bo
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (ref.current) ref.current.srcObject = stream || null;
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = stream || null;
+    if (stream) el.play?.().catch(() => {}); // some browsers won't autoplay a late-set srcObject
   }, [stream]);
 
   return (

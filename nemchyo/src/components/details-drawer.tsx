@@ -3,15 +3,25 @@ import { Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
 import ChatInfo from '@/app/chat-info';
 import { useColors } from '@/lib/theme';
 
-const Ctx = createContext<{ chatId: string | null; open: (id: string) => void; close: () => void }>({
+const Ctx = createContext<{ chatId: string | null; tab?: string; open: (id: string, tab?: string) => void; close: () => void }>({
   chatId: null,
   open: () => {},
   close: () => {},
 });
 
 export function DetailsDrawerProvider({ children }: { children: ReactNode }) {
-  const [chatId, setChatId] = useState<string | null>(null);
-  return <Ctx.Provider value={{ chatId, open: setChatId, close: () => setChatId(null) }}>{children}</Ctx.Provider>;
+  const [state, setState] = useState<{ chatId: string | null; tab?: string }>({ chatId: null });
+  return (
+    <Ctx.Provider
+      value={{
+        chatId: state.chatId,
+        tab: state.tab,
+        open: (id, tab) => setState({ chatId: id, tab }),
+        close: () => setState({ chatId: null }),
+      }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useDetailsDrawer() {
@@ -21,7 +31,7 @@ export function useDetailsDrawer() {
 // Right-side slide-in panel for chat/group details on web (takes < half the
 // screen). On mobile we navigate to the full chat-info route instead.
 export function DetailsDrawer() {
-  const { chatId, close } = useDetailsDrawer();
+  const { chatId, tab, close } = useDetailsDrawer();
   const theme = useColors();
   const tx = useRef(new Animated.Value(80)).current;
 
@@ -41,7 +51,7 @@ export function DetailsDrawer() {
             styles.panel,
             { backgroundColor: theme.bg, borderLeftColor: theme.border, transform: [{ translateX: tx }] },
           ]}>
-          {chatId ? <ChatInfo chat={chatId} embedded onClose={close} /> : null}
+          {chatId ? <ChatInfo chat={chatId} tab={tab} embedded onClose={close} /> : null}
         </Animated.View>
       </View>
     </Modal>

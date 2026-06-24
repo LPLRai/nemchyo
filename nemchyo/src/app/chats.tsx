@@ -128,7 +128,7 @@ export default function Chats() {
               </View>
               <View style={styles.rowBottom}>
                 <Text style={styles.preview} numberOfLines={1}>{preview}</Text>
-                {isMuted(muteMap[item.id]) ? <Text style={styles.muteIcon}>🔕</Text> : null}
+                {isMuted(muteMap[item.id]) ? <Icon name="bell-off" size={15} color={theme.textFaint} /> : null}
               </View>
             </View>
           </Pressable>
@@ -205,6 +205,7 @@ function labelForType(t: string) {
 }
 
 function lastPreview(m: any, myId?: string, isDirect?: boolean): string {
+  if (m.type === 'system') return 'Pinned a message'; // no sender prefix
   const mine = m.sender === myId;
   const prefix = mine
     ? 'You: '
@@ -214,6 +215,8 @@ function lastPreview(m: any, myId?: string, isDirect?: boolean): string {
   let body = '';
   if (m.deleted_for_everyone) body = 'deleted message';
   else if (m.type === 'image') body = '📷 Photo';
+  else if (m.type === 'video') body = '🎬 Video';
+  else if (m.type === 'voice') body = '🎤 Voice message';
   else if (m.type === 'file') body = '📄 ' + (m.file_name || 'File');
   else body = m.body || '';
   return prefix + body;

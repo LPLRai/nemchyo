@@ -47,6 +47,7 @@ routerAdd(
 onRecordAfterCreateSuccess((e) => {
   try {
     const msg = e.record;
+    if (msg.getString("type") === "system") { e.next(); return; } // pin notices etc.
     const chatId = msg.get("chat");
     const senderId = msg.get("sender");
 

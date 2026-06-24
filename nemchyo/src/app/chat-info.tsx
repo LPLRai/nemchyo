@@ -39,9 +39,10 @@ function Empty({ text }: { text: string }) {
   );
 }
 
-export default function ChatInfo({ chat: chatProp, embedded, onClose }: { chat?: string; embedded?: boolean; onClose?: () => void } = {}) {
-  const params = useLocalSearchParams<{ chat: string }>();
+export default function ChatInfo({ chat: chatProp, tab: tabProp, embedded, onClose }: { chat?: string; tab?: string; embedded?: boolean; onClose?: () => void } = {}) {
+  const params = useLocalSearchParams<{ chat: string; tab?: string }>();
   const chat = chatProp ?? params.chat;
+  const initialTab = (tabProp ?? params.tab) as Tab;
   const { isValid, user } = useAuth();
   const router = useRouter();
   const theme = useColors();
@@ -52,7 +53,7 @@ export default function ChatInfo({ chat: chatProp, embedded, onClose }: { chat?:
   const [pins, setPins] = useState<any[]>([]);
   const [linkMsgs, setLinkMsgs] = useState<any[]>([]);
   const [files, setFiles] = useState<any[]>([]);
-  const [tab, setTab] = useState<Tab>('Members');
+  const [tab, setTab] = useState<Tab>(TABS.includes(initialTab) ? initialTab : 'Members');
   const [viewer, setViewer] = useState<{ uris: string[]; index: number } | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<{ name: string; code: string; loading: boolean } | null>(null);

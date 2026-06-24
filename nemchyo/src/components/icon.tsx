@@ -23,7 +23,9 @@ export type IconName =
   | 'phone-off'
   | 'mic-off'
   | 'video-off'
-  | 'switch-camera';
+  | 'switch-camera'
+  | 'pin'
+  | 'forward';
 
 // Hand-drawn line icons via react-native-svg (already native in the build, so
 // these ship over-the-air with no new dependency and no icon-font to load).
@@ -215,6 +217,19 @@ export function Icon({ name, size = 24, color = '#54656F' }: { name: IconName; s
         <Svg {...box}>
           <Path d="M23 4v6h-6" {...s} />
           <Path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" {...s} />
+        </Svg>
+      );
+    case 'pin':
+      return (
+        <Svg {...box}>
+          <Path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" fill={color} />
+        </Svg>
+      );
+    case 'forward':
+      return (
+        <Svg {...box}>
+          <Path d="M5 12h14" {...s} />
+          <Path d="M13 6l6 6-6 6" {...s} />
         </Svg>
       );
   }
