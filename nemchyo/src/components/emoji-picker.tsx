@@ -163,7 +163,7 @@ function GifPanel({ onPickGif }: { onPickGif: (url: string) => void }) {
           style={styles.gifInput}
           value={q}
           onChangeText={setQ}
-          placeholder="Search Tenor GIFs"
+          placeholder="Search GIFs"
           placeholderTextColor={theme.textFaint}
           returnKeyType="search"
         />

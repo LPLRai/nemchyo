@@ -12,7 +12,13 @@ const DEV_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8090' : 'http://127
 // __DEV__ is true under `expo start`, false in production builds.
 export const PB_URL = __DEV__ ? DEV_URL : PROD_URL;
 
-// Tenor (GIF search). 'LIVDSRZULELA' is Tenor's public demo key — fine to start
-// with. For your own higher-rate key, register free at https://tenor.com/gifapi
-// and paste it here.
+// GIF search. The app works out of the box with Tenor's public demo key below.
+//
+// To use your OWN key (recommended for higher rate limits), the EASIEST option
+// is GIPHY: sign up at https://developers.giphy.com (instant, no Google Cloud),
+// create an app -> API key, and paste it here:
+export const GIPHY_KEY = '';
+
+// Tenor fallback. 'LIVDSRZULELA' is Tenor's public demo key. A personal Tenor
+// key needs Google Cloud Console (enable the "Tenor API"); GIPHY above is simpler.
 export const TENOR_KEY = 'LIVDSRZULELA';
