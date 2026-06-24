@@ -68,7 +68,9 @@ export function EmojiPicker({
   const styles = useThemedStyles(makeStyles);
   const [mode, setMode] = useState<'emoji' | 'gif'>('emoji');
   const [cat, setCat] = useState(0);
+  const [gridW, setGridW] = useState(0);
   const current = CATEGORIES[cat];
+  const emojiCols = gridW > 0 ? Math.max(6, Math.floor(gridW / 44)) : 8;
 
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 6) }]}>
@@ -90,11 +92,12 @@ export function EmojiPicker({
         style={styles.grid}
         keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
+        onLayout={(e) => setGridW(e.nativeEvent.layout.width)}
         contentContainerStyle={styles.gridContent}>
         {current.emojis.map((item, i) => (
           <Pressable
             key={current.key + i}
-            style={styles.cell}
+            style={[styles.cell, { width: `${100 / emojiCols}%` }]}
             onPress={() => onPick(item)}
             android_ripple={{ color: '#00000010', borderless: true }}>
             <Text style={styles.emoji}>{item}</Text>
@@ -130,6 +133,8 @@ function GifPanel({ onPickGif }: { onPickGif: (url: string) => void }) {
   const [q, setQ] = useState('');
   const [gifs, setGifs] = useState<TenorGif[]>([]);
   const [loading, setLoading] = useState(true);
+  const [gw, setGw] = useState(0);
+  const gifCols = gw > 0 ? Math.max(2, Math.floor(gw / 108)) : 3;
 
   useEffect(() => {
     let active = true;
@@ -176,9 +181,10 @@ function GifPanel({ onPickGif }: { onPickGif: (url: string) => void }) {
           style={{ flex: 1 }}
           keyboardShouldPersistTaps="always"
           showsVerticalScrollIndicator={false}
+          onLayout={(e) => setGw(e.nativeEvent.layout.width)}
           contentContainerStyle={styles.gifWrap}>
           {gifs.map((item) => (
-            <Pressable key={item.id} style={styles.gifCell} onPress={() => onPickGif(item.gif)}>
+            <Pressable key={item.id} style={[styles.gifCell, { width: `${100 / gifCols}%` }]} onPress={() => onPickGif(item.gif)}>
               <Image source={{ uri: item.preview }} style={styles.gifImg} contentFit="cover" />
             </Pressable>
           ))}
@@ -198,12 +204,12 @@ const makeStyles = (theme: Colors) => StyleSheet.create({
   gifSearch: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: 8, paddingHorizontal: 12, height: 38, borderRadius: 19, backgroundColor: theme.field },
   gifInput: { flex: 1, fontSize: 15, color: theme.text, paddingVertical: 0 },
   gifCenter: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center' },
-  gifWrap: { flexDirection: 'row', flexWrap: 'wrap', padding: 4 },
-  gifCell: { width: 96, height: 96, margin: 3, borderRadius: 10, overflow: 'hidden', backgroundColor: theme.chatBg },
-  gifImg: { width: '100%', height: '100%' },
+  gifWrap: { flexDirection: 'row', flexWrap: 'wrap', padding: 3 },
+  gifCell: { aspectRatio: 1, padding: 3 },
+  gifImg: { width: '100%', height: '100%', borderRadius: 10, backgroundColor: theme.chatBg },
   grid: { flex: 1 },
-  gridContent: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 6, paddingTop: 2 },
-  cell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  gridContent: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 5, paddingTop: 2 },
+  cell: { aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
   emoji: { fontSize: 26 },
   tabBar: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.bg, paddingHorizontal: 4 },
   tab: { paddingHorizontal: 9, paddingVertical: 9, borderRadius: 8, marginVertical: 4 },
